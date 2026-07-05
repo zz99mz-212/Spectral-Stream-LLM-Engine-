@@ -1,0 +1,502 @@
+"""
+CompressionMethod — enum of ALL working methods across 9+ categories.
+
+Naming matches class.name attributes uppercased with underscores.
+Auto-value generation for methods not explicitly listed.
+"""
+
+from __future__ import annotations
+
+import re
+from enum import IntEnum
+
+# Sentinel for auto-generated member values
+_AUTO_VALUE_START = 10000
+
+
+class CompressionMethod(IntEnum):
+    # ── Quantization (Tier 5, LAST RESORT) ──────────────────────────
+    BLOCK_INT8 = 1
+    BLOCK_INT4 = 2
+    HADAMARD_INT8 = 3
+    HADAMARD_INT4 = 4
+    SPARSITY_INT4 = 5
+    DELTA_INT4 = 6
+
+    # ── Engine built-in methods (from _methods.py) ──────────────────
+    SVD_COMPRESS = 7
+    DCT_SPECTRAL = 8
+    TENSOR_TRAIN = 9
+    FWHT_COMPRESS = 10
+
+    # ── Cascade engine methods ──────────────────────────────────────
+    SVD_TRUNCATED = 11
+    DCT_2D = 12
+    HADAMARD_QUANT = 13
+    LOSSLESS_ZSTD = 14
+    LOSSLESS_RANS = 15
+
+    # ── Decomposition (Tier 1, highest ratio) ───────────────────────
+    CP_DECOMPOSITION = 20
+    KRONECKER = 21
+    CUR_DECOMPOSITION = 22
+    TUCKER_DECOMPOSITION = 23
+    BLOCK_TUCKER = 24
+    HIERARCHICAL_TUCKER = 25
+    TENSOR_RING = 26
+    TT_ORTHOGONAL = 27
+    TT_SVD = 28
+    TENSOR_NETWORK = 29
+    HIERARCHICAL_MPS = 30
+    BUTTERFLY = 31
+    MONARCH = 32
+    EINSORT_TT = 33
+    LOTR = 34
+    H_MATRIX = 35
+    NYSTROM = 36
+    RANDOM_FEATURE = 37
+    BLOCK_DIAGONAL = 38
+    TOEPLITZ = 39
+    HANKEL = 40
+    ADNTN_MERA = 41
+    IPEPS_2D = 42
+
+    # ── Spectral (Tier 1) ───────────────────────────────────────────
+    DCT_BLOCK = 50
+    DCT_2D_BLOCK = 51
+    FWHT = 52
+    WAVELET_HAAR = 53
+    WAVELET_DAUBECHIES = 54
+    WAVELET_SYMLET = 55
+    WAVELET_SCATTERING = 56
+    FOURIER = 57
+    FREQUENCY_DOMAIN = 58
+    NTT_TRANSFORM = 59
+    GIVENS = 60
+    CHEBYSHEV = 61
+    WINOGRAD = 62
+    POLYNOMIAL_APPROX = 63
+    RANDOMIZED_HADAMARD = 64
+    BUTTERFLY_SPARSE = 65
+    SPARSE_RANDOM_PROJECTION = 66
+    RANDOM_ROTATION_QUANT = 67
+    HIERARCHICAL_DCT = 68
+    FWHT_COMPRESS_ALT = 69
+    WAVELET_ADAPTIVE = 70
+    WINOGRAD_TRANSFORM = 71
+
+    # ── Polynomial approximation (spectral, Tier 1) ───────────────
+    POLYNOMIAL_ROW_APPROX = 72
+    POLYNOMIAL_COLUMN_APPROX = 73
+    POLYNOMIAL_2D_APPROX = 74
+    RATIONAL_APPROXIMATION = 75
+    CHEBYSHEV_APPROX = 76
+    LEGENDRE_APPROX = 77
+    HERMITE_APPROX = 78
+    SPLINE_ROW_APPROX = 79
+    SPLINE_COLUMN_APPROX = 80
+    SPLINE_2D_BICUBIC = 81
+    BASIS_SPLINE_APPROX = 82
+    PIECEWISE_LINEAR = 83
+    PIECEWISE_CONSTANT = 84
+    LOW_RANK_POLYNOMIAL = 85
+    KRONECKER_POLYNOMIAL = 86
+    TENSOR_TRAIN_POLYNOMIAL = 87
+    LOW_RANK_SPLINE = 88
+    ADAPTIVE_POLYNOMIAL = 89
+    WAVELET_POLYNOMIAL = 90
+    NEURAL_POLYNOMIAL_APPROXIMATOR = 91
+
+    # ── Structural (Tier 2) ────────────────────────────────────────
+    EINSORT = 80
+    MONARCH_STRUCTURED = 81
+    BUTTERFLY_STRUCTURED = 82
+    CIRCULANT = 83
+    VANDERMONDE = 84
+    CAUCHY = 85
+    HSS_MATRIX = 86
+    BSS_MATRIX = 87
+    STRUCTURED_24 = 88
+    BLOCK_SPARSITY = 89
+    UNSTRUCTURED_PRUNING = 90
+    SPARSE_GPT = 91
+    WANDA_PRUNING = 92
+    DYNAMIC_NM_SPARSITY = 93
+    CHANNEL_PRUNING = 94
+    GROUP_LASSO = 95
+    ADAPTIVE_SPARSITY = 96
+    SPARSE_QUANTIZE_COMBINED = 97
+
+    # ── Entropy (Tier 3, lossless) ─────────────────────────────────
+    HUFFMAN = 100
+    RANS = 101
+    TANS = 102
+    ARITHMETIC = 103
+    LZ77 = 104
+    BWT_MTF = 105
+    PREDICTIVE = 106
+    ANS_CORE = 107
+    ANS_TABLE = 108
+
+    # ── Hybrid / Cascade (Tier 4) ──────────────────────────────────
+    CASCADE_2_STAGE = 110
+    CASCADE_3_STAGE = 111
+    CASCADE_4_STAGE = 112
+    QUANTIZE_THEN_SPARSIFY = 113
+    DECOMPOSE_THEN_QUANTIZE = 114
+    TRANSFORM_THEN_QUANTIZE = 115
+    TRANSFORM_THEN_SPARSIFY = 116
+    DECOMPOSE_THEN_TRANSFORM = 117
+    ALL_METHODS_ENSEMBLE = 118
+
+    # ── Lossless (Tier 3) ──────────────────────────────────────────
+    ZLIB = 120
+    LZ4 = 121
+    ZSTD = 122
+    HUFFMAN_CODEC = 123
+
+    # ── Functional (Tier 1) ────────────────────────────────────────
+    BOLTZMANN = 130
+    CATEGORY_THEORY = 131
+    FISHER = 132
+    FRACTAL = 133
+    HAMILTONIAN = 134
+    HIERARCHICAL = 135
+    INFORMATION = 136
+    KOLMOGOROV = 137
+    LAGRANGIAN = 138
+    LANDAU_ZENER = 139
+    NEURAL_ODE = 140
+    SIREN = 141
+    SYMBOLIC = 142
+
+    # ── Physics-inspired (Tier 2) ──────────────────────────────────
+    MHD = 150
+    VLASOV = 151
+    DENSITY_MATRIX = 152
+    PLASMA_OSCILLATION = 153
+    RESONANCE = 154
+    TOPOLOGY = 155
+    QUANTUM = 156
+    FOURIER_PHYS = 157
+    PHYSICS_MISC = 158
+
+    # ── Novel / Tensor Network (Tier 1) ────────────────────────────
+    MERA_ADV = 160
+    PEPS_BOUNDARY = 161
+    QTT_ADAPT = 162
+    TT_CROSS = 163
+    DMRG_SWEEP = 164
+    QTT_FOURIER = 165
+    MERGING_ENTANGLEMENT = 166
+    QUANTUM_AMPLITUDE = 167
+    MATRIX_PRODUCT_OPERATOR = 168
+    QUANTUM_CIRCUIT = 169
+    FLOQUET_TENSOR = 170
+    QUANTUM_CLUSTER = 171
+    SINGULAR_VALUE_DENSITY = 172
+    HYPERSPECTRAL_TENSOR = 173
+    QUANTUM_ERROR_CORRECTING = 174
+    QUANTUM_BOOTSTRAP = 175
+    MBQC_COMPRESS = 176
+    TENSOR_NETWORK_REGROUP = 177
+    DENSITY_MATRIX_RENORM = 178
+    QUANTUM_FOURIER_FEATURE = 179
+    SPIN_GLASS = 180
+    TOPOLOGICAL_ORDER = 181
+
+    # ── Quantization methods (from methods/quantization/) ────────────
+    ADAPTIVE_GROUP_QUANT = 200
+    AWQ_QUANT = 201
+    BINARY_QUANT = 202
+    TERNARY_QUANT = 203
+    GPTQ_QUANT = 204
+    KMEANS_QUANT = 205
+    E8_LATTICE = 206
+    MIXED_PRECISION = 207
+    NF4 = 208
+    PRODUCT_QUANTIZATION = 209
+    SQUEEZELLM_NONUNIFORM = 210
+    STOCHASTIC_ROUND = 211
+    RESIDUAL_VECTOR_QUANT = 212
+    ADDITIVE_CODEBOOK_QUANT = 213
+    LLOYD_MAX_QUANT = 214
+    ADAPTIVE_SCALAR_QUANT = 215
+    HESSIAN_AWARE_QUANT = 216
+    FISHER_INFO_QUANT = 217
+    HIERARCHICAL_CLUSTERED_PQ = 218
+
+    # ── Entropy / Lossless (extended) ─────────────────────────────────
+    DEFLATE = 220
+    ADAPTIVE_ARITHMETIC = 221
+    ENTROPY_RATE = 222
+    LZ77_ENTROPY = 223
+    # ── Novel / Archive methods ──────────────────────────────────────
+    FREQ_DOMAIN_COMPRESSOR = 240
+    TT_COMPRESSOR_ADV = 241
+    RESIDUAL_VQ_COMPRESSOR = 242
+    TENSOR_RING_COMPRESSOR = 243
+    AMPLITUDE_PHASE_COMPRESSOR = 244
+    HOLOGRAPHIC_WEIGHT_ENCODER = 245
+    FREQ_SELECTIVE_TD = 246
+    TURBO_QUANT = 247
+    RANS_ADV = 248
+    TT_PQ_PIPELINE = 249
+    SPECTRAL_PRUNER = 250
+    QUANTUM_AMPLITUDE_ENCODING_ADV = 251
+    SPARSE_TENSOR_COMPRESSOR = 252
+    HADAMARD_PRECONDITIONER = 253
+    # ── Novel cross-layer & hypernetwork methods ────────────────────
+    CROSS_LAYER_DELTA = 254
+    BLOCKWISE_CROSS_LAYER_DELTA = 255
+    HYPERNETWORK_COMPRESS = 256
+    BLOCKWISE_INR = 257
+    SPARSE_DELTA = 258
+    SIMPLE_HYPERNETWORK = 259
+    FOURIER_FEATURE = 260
+    HPC_BLOCK_SVD = 261
+    # ── Cascade 1200:1 methods ────────────────────────────────────────
+    CASCADE_STAGE1_STRUCTURAL = 262
+    CASCADE_STAGE2_DELTA = 263
+    CASCADE_STAGE3_HYPERNETWORK = 264
+    CASCADE_STAGE4_ENTROPY = 265
+    CASCADE_FULL_1200 = 266
+    # ── Revolutionary methods (gauge-equivariant, topological skeleton) ──
+    GAUGE_EQUIVARIANT = 1400
+    TOPOLOGICAL_SKELETON = 1401
+
+    # ── Breakthrough Decomposition methods (100 decomposition from breakthrough_massive) ──
+    BREAKTHROUGH_DECOMPOSITION = 1500
+    ADAPTIVE_LOW_RANK = 1501
+    HIERARCHICAL_SVD = 1502
+    RANDOMIZED_SVD = 1503
+    STREAMING_SVD = 1504
+    BLOCK_LANCZOS = 1505
+    KRYLOV_SUBSPACE = 1506
+    ARNOLDI_ITERATION = 1507
+    JACOBI_DAVIDSON = 1508
+    DIVIDE_CONQUER_SVD = 1509
+    CROSS_APPROXIMATION = 1510
+    ADAPTIVE_CROSS_APPROX = 1511
+    H_MATRIX_DECOMP = 1512
+    H2_MATRIX = 1513
+    BEMPP_COMPRESS = 1514
+    FMM_COMPRESS = 1515
+    DIRECTIONAL_MULTIPOLE = 1516
+    PROXY_POINT = 1517
+    ACA_COMPRESS = 1518
+    TUCKER_DECOMP = 1519
+    TENSOR_RING_DECOMP = 1520
+
+    # ── Breakthrough Hybrid methods (150+ hybrid from breakthrough_massive) ──
+    BREAKTHROUGH_HYBRID = 1550
+    SVD_WAVELET_HYBRID = 1551
+    DCT_KMEANS_HYBRID = 1552
+    FWT_QUANT_HYBRID = 1553
+    PCA_HUFFMAN_HYBRID = 1554
+
+    # ── Breakthrough Information-theoretic methods ──
+    BREAKTHROUGH_INFO = 1600
+    KOLMOGOROV_INFO = 1601
+    ALGORITHMIC_INFO = 1602
+    KULLBACK_LEIBLER_QUANT = 1603
+    JENSEN_SHANNON_QUANT = 1604
+    CROSS_ENTROPY_QUANT = 1605
+    MUTUAL_INFO_MAX_QUANT = 1606
+    INFO_BOTTLENECK_QUANT = 1607
+    MIN_REDUNDANCY_QUANT = 1608
+    MAX_RELEVANCE_QUANT = 1609
+    ENTROPY_CONSTRAINED_VQ = 1610
+    RATE_DISTORTION_VQ = 1611
+    HIGH_RATE_QUANT = 1612
+    ASYMPTOTIC_QUANT = 1613
+    ZADOR_BOUND = 1614
+    GERSHO_BOUND = 1615
+    COVERING_NUM_QUANT = 1616
+    PACKING_NUM_QUANT = 1617
+    SPHERE_PACKING_QUANT = 1618
+    RATE_DISTORTION_FUNC = 1619
+    BLAHUT_ARIMOTO = 1620
+
+    # ── Breakthrough Mathematical methods ──
+    BREAKTHROUGH_MATH = 1650
+    GROUP_THEORY_COMPRESS = 1651
+    RING_THEORY_COMPRESS = 1652
+    FIELD_THEORY_COMPRESS = 1653
+    GALOIS_THEORY_COMPRESS = 1654
+    NUMBER_THEORY_COMPRESS = 1655
+    ANALYTIC_NUMBER_THEORY = 1656
+    MODULAR_FORM_COMPRESS = 1657
+    AUTOMORPHIC_FORM = 1658
+    L_FUNCTION_COMPRESS = 1659
+    ZETA_FUNCTION_COMPRESS = 1660
+    THETA_FUNCTION_COMPRESS = 1661
+    ELLIPTIC_CURVE_COMPRESS = 1662
+    ABELIAN_VARIETY_COMPRESS = 1663
+    JACOBIAN_VARIETY_COMPRESS = 1664
+    MODULAR_CURVE_COMPRESS = 1665
+    SHIMURA_VARIETY_COMPRESS = 1666
+    MOTIVIC_COMPRESS = 1667
+    ETALE_COHOMOLOGY_COMPRESS = 1668
+    WEIL_CONJECTURE_COMPRESS = 1669
+    LEFSCHETZ_FIXED_POINT = 1670
+
+    # ── Breakthrough Signal Processing methods ──
+    BREAKTHROUGH_SIGNAL = 1700
+    ADAPTIVE_FILTER_COMPRESS = 1701
+    KALMAN_FILTER_COMPRESS = 1702
+    EXTENDED_KALMAN_FILTER = 1703
+    UNSCENTED_KALMAN_FILTER = 1704
+    PARTICLE_FILTER_COMPRESS = 1705
+    H_INFINITY_FILTER = 1706
+    WIENER_FILTER_COMPRESS = 1707
+    MATCHED_FILTER_COMPRESS = 1708
+    ADAPTIVE_LINE_ENHANCER = 1709
+    LMS_FILTER_COMPRESS = 1710
+    NLMS_FILTER_COMPRESS = 1711
+    RLS_FILTER_COMPRESS = 1712
+    APA_FILTER_COMPRESS = 1713
+    CMA_EQUALIZER_COMPRESS = 1714
+    DECISION_FEEDBACK_EQ = 1715
+    BLIND_EQUALIZER_COMPRESS = 1716
+    FRACTIONAL_SPACE_EQ = 1717
+    TURBO_EQUALIZER_COMPRESS = 1718
+    VITERBI_COMPRESS = 1719
+    BCJR_COMPRESS = 1720
+
+    # ── Cutting-edge methods (25 methods from cutting_edge/ package) ─────
+    ALGEBRAIC_GEOMETRY = 1800
+    CATEGORY_THEORY_CE = 1801
+    FISHER_INFORMATION_WEIGHTED = 1802
+    FOURIER_NEURAL_OPERATOR = 1803
+    HARMONIC_OSCILLATOR = 1804
+    MANIFOLD_LEARNING = 1805
+    MHD_WAVE = 1806
+    MUTUAL_INFORMATION_CE = 1807
+    OPTIMAL_TRANSPORT = 1808
+    DENSITY_MATRIX_CE = 1809
+    QUANTUM_STATE_CE = 1810
+    QUANTUM_ENTANGLEMENT_CE = 1811
+    QUANTUM_TUNNELING_CE = 1812
+    QUANTUM_ERROR_CORRECT_CE = 1813
+    VLASOV_DISTRIBUTION_CE = 1814
+    PLASMA_OSCILLATION_CE = 1815
+    DEBYE_SHIELDING_CE = 1816
+    PLASMA_TURBULENCE_CE = 1817
+    TOPOLOGICAL_DATA_CE = 1818
+    ENTROPY_RATE_CE = 1819
+    WAVELET_SCATTERING_CE = 1820
+    NEURAL_ODE_CE = 1821
+    KOLMOGOROV_COMPLEXITY_CE = 1822
+    RATE_DISTORTION_CE = 1823
+    RESONANCE_CE = 1824
+
+    # ── Novel library methods (from novel_compression_library/) ──────────
+    CP_ALS = 1900
+    TUCKER_SVD_NL = 1901
+    BLOCK_TUCKER_NL = 1902
+    HTUCKER_NL = 1903
+    TENSOR_NETWORK_NL = 1904
+    BUTTERFLY_FACTOR_NL = 1905
+    KRONECKER_PRODUCT_NL = 1906
+    BLOCK_DIAG_NL = 1907
+    CIRCULANT_APPROX_NL = 1908
+    TOEPLITZ_APPROX_NL = 1909
+    HANKEL_APPROX_NL = 1910
+    LOTR_NL = 1911
+    TT_SVD_NL = 1912
+    TT_ORTH_NL = 1913
+    TR_SVD_NL = 1914
+    LLOYD_MAX = 1915
+    ADAPTIVE_SCALAR = 1916
+    RVQ = 1917
+    ADDITIVE_CODEBOOK = 1918
+    HESSIAN_AWARE = 1919
+    FISHER_INFO = 1920
+    HIERARCHICAL_PQ = 1921
+    LATTICE_ANCHORED = 1922
+    E8_LATTICE_NL = 1923
+    MIXED_PRECISION_NL = 1924
+    GPTQ_LAYER_QUANT_NL = 1925
+    AWQ_ACTIVATION_NL = 1926
+    BINARY_QUANT_NL = 1927
+    TERNARY_QUANT_NL = 1928
+    NF4_NL = 1929
+    PRODUCT_QUANT_NL = 1930
+    NTT = 1931
+    DCT_SPECTRAL_NL = 1932
+    DCT_2D_BLOCK_NL = 1933
+    WAVELET_THRESHOLD = 1934
+    FWHT_NL = 1935
+    RANDOM_HADAMARD_NL = 1936
+    WINOGRAD_NL = 1937
+    RANDOM_ROT_QUANT_NL = 1938
+    BUTTERFLY_SPARSE_NL = 1939
+    SPARSE_RANDOM_PROJ = 1940
+    STRUCTURED_SPARSITY_NL = 1941
+    BLOCK_SPARSITY_NL = 1942
+    UNSTRUCT_PRUNING_NL = 1943
+    SPARSE_GPT_NL = 1944
+    WANDA_PRUNING_NL = 1945
+    DYNAMIC_NM_NL = 1946
+    CHANNEL_PRUNING_NL = 1947
+    GROUP_LASSO_NL = 1948
+    ADAPTIVE_SPARSITY_NL = 1949
+    SPARSE_QUANT_NL = 1950
+    HUFFMAN_NL = 1951
+    RANS_NL = 1952
+    TANS_NL = 1953
+    ARITHMETIC_NL = 1954
+    LZ77_ENTROPY_NL = 1955
+    VLASOV_MF_NL = 1956
+    HOLOGRAPHIC_PHASE = 1957
+    QTENSOR_NET_NL = 1958
+    TIMECRYSTAL = 1959
+    PLASMA_FIELD_NL = 1960
+    SPECTRAL_DENSITY = 1961
+    FISHER_RAO = 1962
+    SYMPLECTIC = 1963
+    INFO_BOTTLENECK = 1964
+    RD_OPTIMAL_NL = 1965
+    LANDAU_ZENER_NL = 1966
+    BOLTZMANN_NL = 1967
+    MAX_ENTROPY_NL = 1968
+    CROSS_LAYER_DELTA_NL = 1969
+
+    # ── Advanced / Archive methods ────────────────────────────────────────
+    TURBO_QUANT_CODEC = 270
+    QUANTUM_TENSOR_NET_COMPRESSOR = 271
+    UNIFIED_QUANTIZER = 272
+    TENSOR_TRAIN_COMPRESSOR = 273
+
+    @classmethod
+    def _missing_(cls, value: object) -> CompressionMethod:
+        """Auto-create enum member for unrecognized names."""
+        if isinstance(value, str):
+            name = value.upper().replace("-", "_")
+            try:
+                return cls[name]
+            except KeyError:
+                pass
+            # Try camelCase → snake_case conversion
+            snake = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", value)
+            snake = (
+                re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", snake).lower().replace("-", "_")
+            )
+            if snake != value.lower():
+                try:
+                    return cls[snake.upper()]
+                except KeyError:
+                    pass
+            # Auto-create a new member with a generated value
+            new_value = cls._next_auto_value()
+            new_member = int.__new__(cls, new_value)
+            new_member._name_ = name
+            new_member._value_ = new_value
+            return new_member
+        return None
+
+    @classmethod
+    def _next_auto_value(cls) -> int:
+        max_val = max(m.value for m in cls) if cls else 0
+        return max(max_val + 1, _AUTO_VALUE_START)

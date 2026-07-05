@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+{% set active_page = "compress" %}
+
+{% block title %}Compress Model — SpectralStream{% endblock %}
+
+{% block header_title %}Compress Model{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Model Compression</h1>
+    <p class="page-subtitle">Intelligently compress models using SpectralStream's 80+ method intelligence engine</p>
+  </div>
+</div>
+
+<div class="grid-2 compress-layout">
+  <!-- LEFT: Configuration Panel -->
+  <div class="glass-card compress-config-panel" id="config-panel">
+    <div class="glass-card-header">
+      <h3>⚙️ Configuration</h3>
+    </div>
+    <div class="glass-card-body">
+      <form id="compress-form" onsubmit="event.preventDefault(); startCompression();">
+        <div class="form-group">
+          <label class="form-label" for="model-select">Model Path</label>
+          <div class="flex gap-2">
+            <select class="form-select" id="model-select" name="model_path" required>
+              <option value="">Select a model...</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-icon" onclick="scanModels()" title="Scan for models">
+              ⟳
+            </button>
+          </div>
+          <div class="form-hint" id="scan-hint">Click refresh to scan for <code>.safetensors</code> models</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Target Compression Ratio</label>
+          <div class="config-slider">
+            <input type="range" id="target-ratio" name="target_ratio" min="100" max="10000" value="5000" step="100"
+                   oninput="updateSliderValue(this, 'ratio-value')">
+            <div class="range-value"><span id="ratio-value">5000</span>x</div>
+          </div>
+          <div class="form-hint">Higher ratio = smaller file, lower quality</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Max Relative Error</label>
+          <div class="config-slider">
+            <input type="range" id="max-error" name="max_error" min="0.0001" max="0.05" value="0.002" step="0.0001"
+                   oninput="updateSliderValue(this, 'error-value', 4)">
+            <div class="range-value"><span id="error-value">0.0020</span> (<span id="error-pct">0.20</span>%)</div>
+          </div>
+          <div class="form-hint">Lower error = better quality, larger file</div>
+        </div>
+
+        <div class="form-group">
+          <label class="toggle">
+            <input type="checkbox" name="streaming" id="streaming" checked />
+            <span class="toggle-track"></span>
+            <span><strong>Streaming Mode</strong><br><small class="text-muted">Process tensors incrementally with lower memory</small></span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg" id="start-btn" style="width:100%; margin-top: 8px;">
+          <span class="icon">⊞</span> Start Compression
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- RIGHT: Visualization Panel -->
+  <div class="glass-card compress-viz-panel" id="viz-panel">
+    <div class="glass-card-header">
+      <h3>🔬 Model Visualization</h3>
+    </div>
+    <div class="glass-card-body">
+      <!-- Pre-compression placeholder -->
+      <div id="viz-placeholder" class="empty-state">
+        <div class="empty-state-icon">⊞</div>
+        <div class="empty-state-title">Ready to Compress</div>
+        <div class="empty-state-description">
+          Select a model and configure compression settings, then click <strong>Start Compression</strong>
+          to see real-time tensor processing visualization.
+        </div>
+      </div>
+
+      <!-- Tensor grid (hidden initially) -->
+      <div id="tensor-grid-container" style="display:none;">
+        <div id="tensor-grid" class="tensor-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROGRESS PANEL (hidden initially) -->
+<div class="glass-card compress-progress-panel" id="progress-panel" style="display:none; margin-top: 20px;">
+  <div class="glass-card-header">
+    <h3>⏳ Compression Progress</h3>
+    <span id="progress-status" class="badge badge-primary">Initializing</span>
+  </div>
+  <div class="glass-card-body">
+    <!-- Progress bar -->
+    <div class="progress-bar" style="height: 12px; margin-bottom: 20px;">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%;"></div>
+    </div>
+    <div class="flex justify-between mb-4">
+      <span id="progress-text" style="color: var(--color-text-secondary); font-weight: 600;">0%</span>
+      <span id="time-elapsed" style="color: var(--color-text-muted);">0.0s</span>
+    </div>
+
+    <!-- Current tensor info -->
+    <div class="compression-stats">
+      <div class="stat-card">
+        <div class="stat-label">Current Tensor</div>
+        <div class="stat-value" style="font-size:1em;" id="current-tensor">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Method</div>
+        <div class="stat-value" style="font-size:1em;" id="current-method">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tensors Done</div>
+        <div class="stat-value" style="font-size:1em;" id="tensors-done">0 / 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Running Ratio</div>
+        <div class="stat-value" style="font-size:1em; color: var(--color-success);" id="ratio-so-far">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Running Error</div>
+        <div class="stat-value" style="font-size:1em; color: var(--color-warning);" id="error-so-far">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS PANEL (hidden initially) -->
+<div class="glass-card compress-results-panel" id="results-panel" style="display:none; margin-top: 20px;">
+  <div class="glass-card-header">
+    <h3>✅ Compression Complete — Certificate</h3>
+    <div class="flex gap-2" id="download-buttons"></div>
+  </div>
+  <div class="glass-card-body">
+    <!-- Summary Stats -->
+    <div class="compression-stats" id="result-stats" style="margin-bottom: 20px;"></div>
+
+    <!-- Charts row -->
+    <div class="grid-2" style="margin-bottom: 20px;">
+      <div class="glass-card">
+        <div class="glass-card-header"><h4>Method Distribution</h4></div>
+        <div class="glass-card-body">
+          <div id="method-chart" class="chart-container"></div>
+        </div>
+      </div>
+      <div class="glass-card">
+        <div class="glass-card-header"><h4>Grade Distribution</h4></div>
+        <div class="glass-card-body">
+          <div id="grade-chart" class="chart-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Certificate Tabs -->
+    <div class="cert-tabs">
+      <button class="cert-tab active" data-target="html" onclick="switchCertTab('html')">HTML</button>
+      <button class="cert-tab" data-target="md" onclick="switchCertTab('md')">Markdown</button>
+      <button class="cert-tab" data-target="json" onclick="switchCertTab('json')">JSON</button>
+      <button class="cert-tab" data-target="text" onclick="switchCertTab('text')">Text</button>
+    </div>
+
+    <div id="cert-html" class="cert-content active">
+      <div class="certificate-display" id="certificate-content"></div>
+    </div>
+    <div id="cert-md" class="cert-content">
+      <pre id="certificate-md-content" class="certificate-display" style="white-space: pre-wrap;"></pre>
+    </div>
+    <div id="cert-json" class="cert-content">
+      <pre id="certificate-json-content" class="certificate-display" style="white-space: pre-wrap;"></pre>
+    </div>
+    <div id="cert-text" class="cert-content">
+      <pre id="certificate-text-content" class="certificate-display" style="white-space: pre-wrap;"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- Per-tensor table (hidden initially) -->
+<div class="glass-card" id="tensor-table-card" style="display:none; margin-top: 20px;">
+  <div class="glass-card-header">
+    <h3>📋 Per-Tensor Report</h3>
+    <span id="tensor-count-badge" class="badge badge-primary">0 tensors</span>
+  </div>
+  <div class="glass-card-body">
+    <div class="table-container">
+      <table id="tensor-table">
+        <thead>
+          <tr>
+            <th>Tensor</th>
+            <th>Shape</th>
+            <th>Method</th>
+            <th>Tier</th>
+            <th>Ratio</th>
+            <th>Error</th>
+            <th>SNR</th>
+            <th>Grade</th>
+          </tr>
+        </thead>
+        <tbody id="tensor-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Slider helpers ──
+function updateSliderValue(slider, outputId, decimals) {
+    const val = parseFloat(slider.value);
+    document.getElementById(outputId).textContent = val.toFixed(decimals || 0);
+    if (outputId === 'error-value') {
+        document.getElementById('error-pct').textContent = (val * 100).toFixed(2);
+    }
+}
+
+// ── Compression State ──
+let currentJobId = null;
+
+// ── Scan Models ──
+async function scanModels() {
+    const btn = event && event.target || document.querySelector('[onclick="scanModels()"]');
+    scanHint('Scanning for models...');
+    try {
+        const response = await fetch('/api/models/scan');
+        const data = await response.json();
+        const select = document.getElementById('model-select');
+        select.innerHTML = '<option value="">Select a model...</option>';
+        for (const model of data.models) {
+            const opt = document.createElement('option');
+            opt.value = model.path;
+            opt.textContent = `${model.name} (${model.size_gb} GB)`;
+            select.appendChild(opt);
+        }
+        scanHint(`Found ${data.models.length} model(s)`);
+    } catch (e) {
+        scanHint('Scan failed: ' + e.message, true);
+    }
+}
+
+function scanHint(msg, isError) {
+    const el = document.getElementById('scan-hint');
+    el.textContent = msg;
+    el.style.color = isError ? 'var(--color-error)' : 'var(--color-text-muted)';
+    setTimeout(() => {
+        el.style.color = '';
+        el.textContent = 'Click refresh to scan for .safetensors models';
+    }, 3000);
+}
+
+// ── Start Compression ──
+async function startCompression() {
+    const form = document.getElementById('compress-form');
+    const formData = new FormData(form);
+
+    if (!formData.get('model_path')) {
+        showToast('Please select a model first', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/compress/start', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await response.json();
+        currentJobId = data.job_id;
+
+        // Switch to progress view
+        document.getElementById('config-panel').style.display = 'none';
+        document.getElementById('viz-placeholder').style.display = 'none';
+        document.getElementById('tensor-grid-container').style.display = 'block';
+        document.getElementById('progress-panel').style.display = 'block';
+        document.getElementById('progress-status').textContent = 'Starting';
+        document.getElementById('start-btn').disabled = true;
+
+        pollCompressionStatus(currentJobId);
+    } catch (e) {
+        showToast('Failed to start compression: ' + e.message, 'error');
+    }
+}
+
+// ── Poll Status ──
+async function pollCompressionStatus(jobId) {
+    try {
+        const response = await fetch(`/api/compress/status/${jobId}`);
+        const status = await response.json();
+        updateCompressionUI(status);
+
+        if (status.status === 'running' || status.status === 'profiling' || status.status === 'compressing' || status.status === 'initializing' || status.status === 'finalizing') {
+            setTimeout(() => pollCompressionStatus(jobId), 400);
+        } else if (status.status === 'completed') {
+            await showResults(jobId);
+        } else if (status.status === 'failed') {
+            showCompressionError(status.error || 'Unknown error');
+        }
+    } catch (e) {
+        setTimeout(() => pollCompressionStatus(jobId), 1000);
+    }
+}
+
+// ── Update UI ──
+function updateCompressionUI(status) {
+    const pct = Math.round(status.progress || 0);
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-text').textContent = pct + '%';
+    document.getElementById('progress-status').textContent = status.status.charAt(0).toUpperCase() + status.status.slice(1);
+
+    if (status.current_tensor) {
+        document.getElementById('current-tensor').textContent = status.current_tensor;
+    }
+    if (status.current_method) {
+        document.getElementById('current-method').textContent = status.current_method;
+    }
+    document.getElementById('tensors-done').textContent = `${status.tensors_done || 0} / ${status.total_tensors || 0}`;
+    document.getElementById('ratio-so-far').textContent = status.ratio_so_far ? `${status.ratio_so_far}x` : '—';
+    document.getElementById('error-so-far').textContent = status.error_so_far ? `${(status.error_so_far * 100).toFixed(4)}%` : '—';
+    document.getElementById('time-elapsed').textContent = `${(status.elapsed || 0).toFixed(1)}s`;
+
+    if (status.tensors && status.tensors.length > 0) {
+        updateTensorGrid(status.tensors);
+    }
+}
+
+// ── Tensor Grid ──
+function updateTensorGrid(tensors) {
+    const grid = document.getElementById('tensor-grid');
+    grid.innerHTML = '';
+    const tierColors = {1: '#00FF88', 2: '#00CEC9', 3: '#6C5CE7', 4: '#FFD700', 5: '#FF4444'};
+
+    for (const tensor of tensors) {
+        const el = document.createElement('div');
+        el.className = 'tensor-block';
+        const color = tierColors[tensor.tier] || '#555';
+        el.style.background = color;
+        el.style.boxShadow = `0 0 8px ${color}44`;
+
+        const sizeNorm = Math.min((tensor.size_mb || 0.1) / 50, 1);
+        const dim = Math.max(8, Math.min(48, 8 + sizeNorm * 40));
+        el.style.width = dim + 'px';
+        el.style.height = dim + 'px';
+
+        el.title = `${tensor.name}\nMethod: ${tensor.method}\nTier: ${tensor.tier}\nRatio: ${tensor.ratio}x\nError: ${(tensor.error * 100).toFixed(4)}%\nGrade: ${tensor.grade}`;
+        grid.appendChild(el);
+    }
+}
+
+// ── Show Results ──
+async function showResults(jobId) {
+    try {
+        const response = await fetch(`/api/compress/result/${jobId}`);
+        const result = await response.json();
+
+        document.getElementById('progress-panel').style.display = 'none';
+        document.getElementById('results-panel').style.display = 'block';
+
+        // Summary stats
+        const cert = result.certificate_json || {};
+        const comp = cert.compression || {};
+        const qual = cert.quality || {};
+        const model = cert.model || {};
+        const marketing = cert.marketing || {};
+
+        document.getElementById('result-stats').innerHTML = `
+            <div class="stat-card"><div class="stat-label">Compression Ratio</div><div class="stat-value" style="color:var(--color-success);">${comp.ratio || 0}x</div></div>
+            <div class="stat-card"><div class="stat-label">Original Size</div><div class="stat-value">${model.original_size_gb || 0} <span class="unit">GB</span></div></div>
+            <div class="stat-card"><div class="stat-label">Compressed Size</div><div class="stat-value">${model.compressed_size_gb || 0} <span class="unit">GB</span></div></div>
+            <div class="stat-card"><div class="stat-label">Space Saved</div><div class="stat-value" style="color:var(--color-secondary);">${marketing.space_saved_gb || 0} <span class="unit">GB</span></div></div>
+            <div class="stat-card"><div class="stat-label">Avg Error</div><div class="stat-value" style="color:var(--color-warning);">${qual.avg_error_percent || 0}%</div></div>
+            <div class="stat-card"><div class="stat-label">Avg SNR</div><div class="stat-value">${qual.avg_snr_db || 0} <span class="unit">dB</span></div></div>
+            <div class="stat-card"><div class="stat-label">Compression Time</div><div class="stat-value">${comp.time_seconds || 0} <span class="unit">s</span></div></div>
+            <div class="stat-card"><div class="stat-label">Methods Used</div><div class="stat-value">${comp.methods_used || 0}</div></div>
+        `;
+
+        // Method distribution chart (CSS pie)
+        renderMethodChart(cert.method_distribution || {});
+        renderGradeChart(qual.grade_distribution || {});
+
+        // Certificate content
+        document.getElementById('certificate-content').innerHTML = result.certificate_html || '';
+        document.getElementById('certificate-md-content').textContent = result.certificate_md || '';
+        document.getElementById('certificate-json-content').textContent = JSON.stringify(result.certificate_json, null, 2);
+        document.getElementById('certificate-text-content').textContent = result.certificate_txt || '';
+
+        // Tensor table
+        const tensors = (cert.tensors || []);
+        document.getElementById('tensor-table-card').style.display = 'block';
+        document.getElementById('tensor-count-badge').textContent = tensors.length + ' tensors';
+        const tbody = document.getElementById('tensor-table-body');
+        tbody.innerHTML = '';
+        const tierColors = {1: '#00FF88', 2: '#00CEC9', 3: '#6C5CE7', 4: '#FFD700', 5: '#FF4444'};
+        for (const t of tensors) {
+            const tr = document.createElement('tr');
+            const shapeStr = (t.shape || []).slice(0, 3).join('×') + ((t.shape || []).length > 3 ? '…' : '');
+            tr.innerHTML = `
+                <td style="font-size:0.85em; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(t.name)}">${escapeHtml((t.name || '').slice(0, 50))}</td>
+                <td>${shapeStr}</td>
+                <td>${escapeHtml(t.method || '')}</td>
+                <td><span class="tier-badge tier-${t.quality_grade === 'S' || t.quality_grade === 'A' ? 1 : t.quality_grade === 'B' ? 2 : t.quality_grade === 'C' ? 3 : t.quality_grade === 'D' ? 4 : 5}" style="background:${tierColors[t.quality_grade === 'S' || t.quality_grade === 'A' ? 1 : t.quality_grade === 'B' ? 2 : t.quality_grade === 'C' ? 3 : t.quality_grade === 'D' ? 4 : 5]}22;">Tier ${t.quality_grade === 'S' || t.quality_grade === 'A' ? 1 : t.quality_grade === 'B' ? 2 : t.quality_grade === 'C' ? 3 : t.quality_grade === 'D' ? 4 : 5}</span></td>
+                <td>${(t.compression_ratio || 0).toFixed(2)}x</td>
+                <td style="color:${t.relative_error < 0.001 ? 'var(--color-success)' : t.relative_error < 0.01 ? 'var(--color-warning)' : 'var(--color-error)'}">${((t.relative_error || 0) * 100).toFixed(4)}%</td>
+                <td>${(t.snr_db || 0).toFixed(1)} dB</td>
+                <td><span class="badge badge-grade ${t.quality_grade || 'F'}">${t.quality_grade || 'F'}</span></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        // Download buttons
+        setupDownloadButtons(result);
+
+        showToast('Compression completed successfully!', 'success');
+    } catch (e) {
+        showToast('Failed to load results: ' + e.message, 'error');
+    }
+}
+
+// ── Charts ──
+function renderMethodChart(dist) {
+    const container = document.getElementById('method-chart');
+    container.innerHTML = '<div class="css-pie-chart" style="background: conic-gradient(' +
+        Object.entries(dist).map(([method, count], i, arr) => {
+            const total = Object.values(dist).reduce((a, b) => a + b, 0);
+            const pct = count / total * 100;
+            const colors = ['#6C5CE7', '#00CEC9', '#00FF88', '#FFD700', '#FD79A8', '#FF4444', '#8888FF', '#33DAD6'];
+            const color = colors[i % colors.length];
+            const start = arr.slice(0, i).reduce((s, [_, c]) => s + c / total * 360, 0);
+            return `${color} ${start}deg ${start + pct * 3.6}deg`;
+        }).join(', ') + ');"></div>' +
+        '<div class="flex flex-wrap gap-2" style="justify-content:center; margin-top: 16px;">' +
+        Object.entries(dist).map(([method, count], i) => {
+            const colors = ['#6C5CE7', '#00CEC9', '#00FF88', '#FFD700', '#FD79A8', '#FF4444', '#8888FF', '#33DAD6'];
+            return `<span class="method-tag" style="background:${colors[i % colors.length]}22; border:1px solid ${colors[i % colors.length]}44;"><span style="color:${colors[i % colors.length]}">●</span> ${method} (${count})</span>`;
+        }).join('') + '</div>';
+}
+
+function renderGradeChart(grades) {
+    const container = document.getElementById('grade-chart');
+    const gradeOrder = ['S', 'A', 'B', 'C', 'D', 'F'];
+    const gradeColors = {S: '#00FF88', A: '#00CEC9', B: '#6C5CE7', C: '#8888FF', D: '#FFD700', F: '#FF4444'};
+    const total = Object.values(grades).reduce((a, b) => a + b, 0) || 1;
+
+    container.innerHTML = '<div class="css-bar-chart">' +
+        gradeOrder.map(g => {
+            const count = grades[g] || 0;
+            const pct = count / total * 100;
+            return `<div class="css-bar" style="height:${Math.max(pct, 2)}%; background:${gradeColors[g]};">
+                <div class="bar-label">${g}<br><strong>${count}</strong></div>
+            </div>`;
+        }).join('') + '</div>';
+}
+
+// ── Certificate Tab Switching ──
+function switchCertTab(tab) {
+    document.querySelectorAll('.cert-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.cert-content').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.cert-tab[data-target="${tab}"]`).classList.add('active');
+    document.getElementById(`cert-${tab}`).classList.add('active');
+}
+
+// ── Download Buttons ──
+function setupDownloadButtons(result) {
+    const container = document.getElementById('download-buttons');
+    container.innerHTML = '';
+    const formats = [
+        { label: 'Download JSON', data: JSON.stringify(result.certificate_json, null, 2), mime: 'application/json', ext: 'json' },
+        { label: 'Download HTML', data: result.certificate_html, mime: 'text/html', ext: 'html' },
+        { label: 'Download MD', data: result.certificate_md, mime: 'text/markdown', ext: 'md' },
+        { label: 'Download TXT', data: result.certificate_txt, mime: 'text/plain', ext: 'txt' },
+    ];
+    formats.forEach(f => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-ghost btn-sm';
+        btn.textContent = f.label;
+        btn.onclick = () => {
+            const blob = new Blob([f.data], { type: f.mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `certificate.${f.ext}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+        container.appendChild(btn);
+    });
+}
+
+// ── Error Display ──
+function showCompressionError(msg) {
+    document.getElementById('progress-status').textContent = 'Failed';
+    document.getElementById('progress-status').className = 'badge badge-error';
+    showToast('Compression failed: ' + msg, 'error');
+    document.getElementById('start-btn').disabled = false;
+}
+
+// ── Auto-scan on load ──
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(scanModels, 500);
+});
+</script>
+{% endblock %}

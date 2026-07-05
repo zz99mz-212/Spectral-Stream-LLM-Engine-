@@ -1,0 +1,443 @@
+{
+  "mmproj-Qwen3.6-35B-A": {
+    "model": "mmproj-Qwen3.6-35B-A",
+    "variant": "Qwen",
+    "size_gb": 0.84,
+    "vocab_size": 152064,
+    "d_model": 2048,
+    "n_layers": 28,
+    "train_time_ms": 165.9,
+    "tokens_per_second": 37237.9,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 22073,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 26054.1,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 30964.985119390934,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 36857.81353837704,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 47309.738456115614,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 37237.9,
+      "8": 1155638.9,
+      "16": 2909684.7,
+      "64": 14443357.6
+    }
+  },
+  "mmproj-Qwen3.5-9B-BF": {
+    "model": "mmproj-Qwen3.5-9B-BF",
+    "variant": "Qwen",
+    "size_gb": 0.86,
+    "vocab_size": 152064,
+    "d_model": 2048,
+    "n_layers": 28,
+    "train_time_ms": 151.3,
+    "tokens_per_second": 37338.0,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 22292,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 26109.9,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 30514.43173809253,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 36812.322545255076,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 48993.51268479649,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 37338.0,
+      "8": 1158746.6,
+      "16": 2917509.3,
+      "64": 14482198.2
+    }
+  },
+  "Gemma 4 E2B": {
+    "model": "Gemma 4 E2B",
+    "variant": "E2B",
+    "size_gb": 2.89,
+    "vocab_size": 262144,
+    "d_model": 1536,
+    "n_layers": 35,
+    "train_time_ms": 154.0,
+    "tokens_per_second": 35978.5,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 25119,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 18676.4,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 28755.806748794857,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 36596.51751874574,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 46986.77682478558,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 35978.5,
+      "8": 1116554.9,
+      "16": 2811278.3,
+      "64": 13954878.7
+    }
+  },
+  "Gemma 4 E4B": {
+    "model": "Gemma 4 E4B",
+    "variant": "E4B",
+    "size_gb": 4.64,
+    "vocab_size": 262144,
+    "d_model": 2560,
+    "n_layers": 42,
+    "train_time_ms": 157.3,
+    "tokens_per_second": 35077.4,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 23776,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 23797.5,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 27794.103955270242,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 35887.09304812834,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 46122.93058419244,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 35077.4,
+      "8": 1088589.9,
+      "16": 2740867.7,
+      "64": 13605368.5
+    }
+  },
+  "Granite 4.0 Tiny": {
+    "model": "Granite 4.0 Tiny",
+    "variant": "Granite",
+    "size_gb": 3.94,
+    "vocab_size": 49152,
+    "d_model": 1024,
+    "n_layers": 12,
+    "train_time_ms": 193.6,
+    "tokens_per_second": 35546.5,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 23305,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 26125.1,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 28833.024274973148,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 34879.866943866946,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 47519.110639051156,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 35546.5,
+      "8": 1103149.3,
+      "16": 2777525.6,
+      "64": 13787333.9
+    }
+  },
+  "Qwen3.5-9B-Q4_K_M": {
+    "model": "Qwen3.5-9B-Q4_K_M",
+    "variant": "Qwen",
+    "size_gb": 5.24,
+    "vocab_size": 152064,
+    "d_model": 2048,
+    "n_layers": 28,
+    "train_time_ms": 156.2,
+    "tokens_per_second": 36144.8,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 22486,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 27188.8,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 29582.924399382853,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 36581.55573725811,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 45745.64689843218,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 36144.8,
+      "8": 1121716.7,
+      "16": 2824274.8,
+      "64": 14019391.9
+    }
+  },
+  "gemma4-v2-Q4_K_M": {
+    "model": "gemma4-v2-Q4_K_M",
+    "variant": "gemma4-v2-q4",
+    "size_gb": 6.87,
+    "vocab_size": 262144,
+    "d_model": 3840,
+    "n_layers": 48,
+    "train_time_ms": 153.8,
+    "tokens_per_second": 37719.3,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 21503,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 27814.3,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 31264.320521779642,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 37334.55577190543,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 48158.49587369932,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 37719.3,
+      "8": 1170578.3,
+      "16": 2947299.4,
+      "64": 14630072.6
+    }
+  },
+  "Qwen3.6-35B-A3B-Q4_K": {
+    "model": "Qwen3.6-35B-A3B-Q4_K",
+    "variant": "Qwen",
+    "size_gb": 19.71,
+    "vocab_size": 152064,
+    "d_model": 2048,
+    "n_layers": 28,
+    "train_time_ms": 167.7,
+    "tokens_per_second": 37231.0,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 21871,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 27909.7,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 29635.179509825568,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 37744.017997750285,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 49164.00293040293,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 37231.0,
+      "8": 1155425.2,
+      "16": 2909146.6,
+      "64": 14440686.6
+    }
+  },
+  "Qwen3.6-35B-A3B-UD-Q": {
+    "model": "Qwen3.6-35B-A3B-UD-Q",
+    "variant": "Qwen",
+    "size_gb": 20.61,
+    "vocab_size": 152064,
+    "d_model": 2048,
+    "n_layers": 28,
+    "train_time_ms": 151.3,
+    "tokens_per_second": 35946.4,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 22870,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 25870.8,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 29635.179509825568,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "#pS ZPhZhm+4Z+,p# , Z ,+R#,RSZW m]SZZh+R4Z,+6Zm,] h+SZ S, +h+RZ"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 35686.7131082159,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "+6Zm,] h+SZ S, +h+RZ ,ZZSPm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 46099.16812639533,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=1.00",
+        "text": "Pm PS6ZZhR+h;h],+p {ZmPS Zp SZW,ZpZ6S],6S ZGSSWZ S, +h+RZ[\\]^_`a"
+      }
+    ],
+    "projections": {
+      "1": 35946.4,
+      "8": 1115558.1,
+      "16": 2808768.5,
+      "64": 13942420.7
+    }
+  }
+}

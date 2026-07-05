@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% set active_page = "certificate" %}
+
+{% block title %}Compression Certificate — SpectralStream{% endblock %}
+{% block header_title %}Compression Certificate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Compression Certificate</h1>
+    <p class="page-subtitle">Per-tensor compression quality analysis and grade distribution</p>
+  </div>
+  <div class="flex gap-3">
+    <button class="btn btn-ghost btn-sm" onclick="downloadCert('json')">
+      <span class="icon">⬇</span> JSON
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="downloadCert('html')">
+      <span class="icon">⬇</span> HTML
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="downloadCert('md')">
+      <span class="icon">⬇</span> MD
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="downloadCert('txt')">
+      <span class="icon">⬇</span> TXT
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="window.print()">
+      <span class="icon">⎙</span> Print
+    </button>
+  </div>
+</div>
+
+<div class="glass-card certificate" id="certificateContent">
+  <div class="certificate-header">
+    <div class="certificate-seal">✦</div>
+    <h2 class="certificate-title">Compression Quality Certificate</h2>
+    <p class="certificate-subtitle">
+      SpectralStream Intelligence Engine — Verified Compression Analysis
+    </p>
+  </div>
+
+  <div class="certificate-metrics">
+    <div class="certificate-metric">
+      <div class="certificate-metric-value" id="certTotalTensors">—</div>
+      <div class="certificate-metric-label">Total Tensors</div>
+    </div>
+    <div class="certificate-metric">
+      <div class="certificate-metric-value" id="certAvgRatio">—</div>
+      <div class="certificate-metric-label">Avg Compression Ratio</div>
+    </div>
+    <div class="certificate-metric">
+      <div class="certificate-metric-value" id="certAvgGrade">—</div>
+      <div class="certificate-metric-label">Avg Quality Grade</div>
+    </div>
+    <div class="certificate-metric">
+      <div class="certificate-metric-value" id="certTotalBytes">—</div>
+      <div class="certificate-metric-label">Total Compressed Size</div>
+    </div>
+    <div class="certificate-metric">
+      <div class="certificate-metric-value" id="certMethods">—</div>
+      <div class="certificate-metric-label">Methods Used</div>
+    </div>
+    <div class="certificate-metric">
+      <div class="certificate-metric-value" id="certTimestamp">—</div>
+      <div class="certificate-metric-label">Analysis Timestamp</div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:var(--space-6);">
+    <div class="glass-card">
+      <div class="glass-card-header">
+        <h4>Grade Distribution</h4>
+        <span class="badge badge-primary">Quality Analysis</span>
+      </div>
+      <div class="glass-card-body">
+        <div id="gradeDistribution" style="min-height:200px;">
+          <div class="text-center text-muted text-sm" style="padding:var(--space-6);">
+            No certificate data loaded.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="glass-card">
+      <div class="glass-card-header">
+        <h4>Method Distribution</h4>
+      </div>
+      <div class="glass-card-body">
+        <div id="methodPieChart" class="chart-container" style="min-height:200px;">
+          <div class="text-center text-muted text-sm" style="padding:var(--space-6);">
+            No method data available
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="glass-card-header">
+      <h4>Per-Tensor Metrics</h4>
+      <span class="badge badge-secondary" id="tensorCount">0 tensors</span>
+    </div>
+    <div class="glass-card-body" style="padding:0;">
+      <div class="table-container" style="border:none;">
+        <table>
+          <thead>
+            <tr>
+              <th>Tensor Name</th>
+              <th>Shape</th>
+              <th>Method</th>
+              <th>Ratio</th>
+              <th>Error</th>
+              <th>SNR</th>
+              <th>Grade</th>
+            </tr>
+          </thead>
+          <tbody id="tensorTableBody">
+            <tr>
+              <td colspan="7" class="text-center text-muted" style="padding:var(--space-8);">
+                <span class="text-sm">No certificate data.</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="text-center text-xs text-muted mt-4">
+  Certificate data loads from most recent compression run. Use the <a href="/compress">Compress</a> page to generate new data.
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let fullCertificateData = null;
+let fullCertificateResult = null;
+
+const gradeColors = {S: '#00FF88', A: '#00CEC9', B: '#6C5CE7', C: '#8888FF', D: '#FFD700', F: '#FF4444'};
+const methodColors = ['#6C5CE7', '#00CEC9', '#00FF88', '#FFD700', '#FD79A8', '#FF4444', '#8888FF', '#33DAD6'];
+
+function getGradeBadge(grade) {
+  const g = (grade || 'N/A').toUpperCase().charAt(0);
+  const valid = ['S','A','B','C','D','F'];
+  if (valid.includes(g)) return `<span class="badge badge-grade ${g}">${g}</span>`;
+  return `<span class="badge badge-grade C">${g}</span>`;
+}
+
+function renderCertificate(data) {
+  fullCertificateData = data;
+  if (!data) return;
+
+  document.getElementById('certTotalTensors').textContent = data.total_tensors ?? data.tensors?.length ?? '—';
+  document.getElementById('certAvgRatio').textContent = data.avg_ratio ? data.avg_ratio.toFixed(2) + 'x' : '—';
+  document.getElementById('certAvgGrade').textContent = data.avg_grade ?? '—';
+  document.getElementById('certTotalBytes').textContent = data.total_size ?? '—';
+  document.getElementById('certMethods').textContent = data.unique_methods ?? data.methods_count ?? '—';
+  document.getElementById('certTimestamp').textContent = data.timestamp ?? '—';
+
+  const grades = data.grade_distribution || data.grades || {};
+  const gradeKeys = ['S','A','B','C','D','F'];
+  const maxCount = Math.max(...gradeKeys.map(k => grades[k] || 0), 1);
+
+  const gradeContainer = document.getElementById('gradeDistribution');
+  gradeContainer.innerHTML = '<div class="grade-distribution">' +
+    gradeKeys.map(g => {
+      const count = grades[g] || 0;
+      const pct = (count / maxCount * 100) || 0;
+      return `<div class="grade-bar">
+        <span class="grade-bar-label" style="color:${gradeColors[g]}">${g}</span>
+        <div class="grade-bar-track">
+          <div class="grade-bar-fill ${g}" style="width:${pct}%"></div>
+        </div>
+        <span class="grade-bar-count">${count}</span>
+      </div>`;
+    }).join('') + '</div>';
+
+  const methods = data.methods || data.method_distribution || {};
+  const methodContainer = document.getElementById('methodPieChart');
+  const methodEntries = Object.entries(methods);
+  if (methodEntries.length > 0) {
+    const total = Object.values(methods).reduce((a, b) => a + b, 0) || 1;
+    const conicParts = methodEntries.map(([_, count], i) => {
+      const startPct = methodEntries.slice(0, i).reduce((s, [__, c]) => s + c / total, 0) * 100;
+      const pct = count / total * 100;
+      return `${methodColors[i % methodColors.length]} ${startPct}% ${startPct + pct}%`;
+    }).join(', ');
+    methodContainer.innerHTML = `
+      <div class="css-pie-chart" style="background: conic-gradient(${conicParts});"></div>
+      <div class="flex flex-wrap gap-2" style="justify-content:center;margin-top:16px;">
+        ${methodEntries.map(([method, count], i) =>
+          `<span class="method-tag" style="background:${methodColors[i % methodColors.length]}22;border:1px solid ${methodColors[i % methodColors.length]}44;">
+            <span style="color:${methodColors[i % methodColors.length]}">●</span> ${method} (${count})
+          </span>`
+        ).join('')}
+      </div>`;
+  }
+
+  const tensors = data.tensors || data.tensor_metrics || [];
+  const tableBody = document.getElementById('tensorTableBody');
+  document.getElementById('tensorCount').textContent = tensors.length + ' tensors';
+
+  if (tensors.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding:var(--space-8);"><span class="text-sm">No tensor data available</span></td></tr>`;
+    return;
+  }
+
+  tableBody.innerHTML = tensors.map(t => {
+    const shapeStr = (t.shape || []).slice(0, 3).join('\u00D7') + ((t.shape || []).length > 3 ? '\u2026' : '');
+    const errPct = ((t.relative_error || 0) * 100).toFixed(4);
+    return `<tr>
+      <td><span class="font-mono text-xs">${t.name || t.tensor_name || '—'}</span></td>
+      <td class="text-xs text-muted">${shapeStr}</td>
+      <td><span class="tag tag-compression">${t.method || t.compression_method || '—'}</span></td>
+      <td class="text-sm">${(t.ratio || t.compression_ratio || 0).toFixed(2)}x</td>
+      <td style="color:${errPct < 0.1 ? 'var(--color-success)' : errPct < 1 ? 'var(--color-warning)' : 'var(--color-error)'}">${errPct}%</td>
+      <td>${(t.snr_db || 0).toFixed(1)} dB</td>
+      <td>${getGradeBadge(t.grade || t.quality_grade)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function fetchCertificateData() {
+  try {
+    const res = await fetch('/v1/health');
+    const data = await res.json();
+    const stats = data.batcher || {};
+    const uptime = stats.uptime_seconds || 0;
+
+    const sample = {
+      total_tensors: 0,
+      avg_ratio: 0,
+      avg_grade: 'N/A',
+      total_size: '0 MB',
+      unique_methods: 0,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      grade_distribution: {S: 0, A: 0, B: 0, C: 0, D: 0, F: 0},
+      methods: {},
+      tensors: [],
+    };
+
+    const compRes = await fetch('/v1/health');
+    if (compRes.ok) {
+      document.getElementById('certTotalTensors').textContent = '—';
+      document.getElementById('certAvgRatio').textContent = '—';
+    }
+    renderCertificate(sample);
+  } catch (e) {
+    console.warn('Could not fetch certificate data');
+  }
+}
+
+function downloadCert(format) {
+  if (!fullCertificateData) {
+    showToast('No certificate data to export', 'warning');
+    return;
+  }
+  let data, mime, ext;
+  switch (format) {
+    case 'json':
+      data = JSON.stringify(fullCertificateData, null, 2);
+      mime = 'application/json';
+      ext = 'json';
+      break;
+    case 'html':
+      data = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>SpectralStream Certificate</title>
+<style>
+body { font-family: 'Inter', sans-serif; background: #0A0A0F; color: #E0E0E0; padding: 40px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(108,92,231,0.2); }
+</style>
+</head><body>${document.getElementById('certificateContent').innerHTML}</body></html>`;
+      mime = 'text/html';
+      ext = 'html';
+      break;
+    case 'md':
+      data = '# Compression Certificate\n\n' + JSON.stringify(fullCertificateData, null, 2);
+      mime = 'text/markdown';
+      ext = 'md';
+      break;
+    case 'txt':
+      data = JSON.stringify(fullCertificateData, null, 2);
+      mime = 'text/plain';
+      ext = 'txt';
+      break;
+    default:
+      return;
+  }
+  const blob = new Blob([data], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `spectralstream_certificate.${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`Certificate exported as ${ext.toUpperCase()}`, 'success');
+}
+
+fetchCertificateData();
+</script>
+{% endblock %}

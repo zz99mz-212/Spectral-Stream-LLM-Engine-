@@ -1,0 +1,6 @@
+FROM spectralstream
+
+PARAMETER temperature 0.7
+PARAMETER num_ctx 4096
+
+SYSTEM You are a helpful assistant running on SpectralStream's extreme compression inference engine.

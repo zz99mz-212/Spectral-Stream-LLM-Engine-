@@ -1,0 +1,545 @@
+\documentclass[11pt,a4paper,twocolumn]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{geometry}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% ── Page layout ──────────────────────────────────────────────────────
+\geometry{margin=0.9in,columnsep=0.25in}
+\setlength{\parskip}{0.5ex}
+\setlength{\parindent}{0pt}
+
+% ── Colors ───────────────────────────────────────────────────────────
+\definecolor{ssblue}{HTML}{1a237e}
+\definecolor{sspurple}{HTML}{4a148c}
+\definecolor{sscode}{HTML}{f5f5f5}
+
+% ── Theorem-like environments ───────────────────────────────────────
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+% ── Title ────────────────────────────────────────────────────────────
+\title{\vspace{-2ex}%
+  {\huge \textbf{SpectralStream}} \\
+  {\Large A Unified Framework for Neural Network Compression\\
+  via Spectral Methods, Hyperdimensional Computing,\\
+  and Physics-Inspired Attention} \\
+  \vspace{1ex}
+  {\large Technical Whitepaper --- Version 1.0}%
+  \vspace{-2ex}}
+
+\author{%
+  SpectralStream Research Group \\
+  \texttt{https://github.com/anomalyco/SpectralStream}%
+}
+
+\date{\today}
+
+% ── Document ─────────────────────────────────────────────────────────
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+	We present \textbf{SpectralStream}, a pure-Python framework for neural network compression and efficient inference that achieves extreme compression ratios (up to 5000:1) through the synergistic integration of six mathematical traditions: spectral analysis, hyperdimensional computing (HDC), Vlasov mean-field theory from plasma physics, tensor networks from quantum many-body physics, compressed sensing, and information theory. SpectralStream replaces traditional quantization-first approaches with a \emph{compression-first} philosophy that decomposes weight matrices and attention patterns into structured low-entropy representations before optional quantization. The framework encompasses an 80+ method compression intelligence engine with adaptive per-tensor method selection, a production-grade CPU inference pipeline with speculative decoding, a unified binary format (SSF v2/v3) with cryptographic integrity verification, a hierarchical KV cache with 13 eviction policies and 30+ compression methods, and a professional certificate system for quality assurance. All operations are vectorized via NumPy with zero C++ extensions, demonstrating that pure-Python can achieve production-grade neural network compression at scale.
+\end{abstract}
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Introduction}
+% ═════════════════════════════════════════════════════════════════════
+
+Large language models (LLMs) have grown to hundreds of billions of parameters, with inference requiring terabytes of memory and significant computational resources. Existing compression approaches---quantization (GPTQ~\cite{frantar2023gptq}, AWQ~\cite{lin2024awq}, GGML~\cite{gerganov2023ggml}), pruning (SparseGPT~\cite{frantar2023sparsegpt}, Wanda~\cite{sun2023wanda}), and distillation~\cite{hinton2015distilling}---operate primarily in the spatial (weight-value) domain and typically achieve 2--8$\times$ compression at the cost of measurable quality degradation.
+
+SpectralStream takes a fundamentally different approach: instead of quantizing weights directly, it first \emph{transforms} them into spectral, structural, or tensor-network representations where information is naturally concentrated in far fewer coefficients. The central insight is that neural network weight matrices and attention patterns are not unstructured noise---they exhibit highly structured frequency-domain, low-rank, and low-entanglement properties that can be exploited for compression ratios orders of magnitude beyond conventional quantization.
+
+The core design principles of SpectralStream are:
+
+\begin{enumerate}
+	\item \textbf{Compression-first, quantize-last:} Spectral methods (DCT, FWHT, wavelets), tensor decompositions (SVD, TT, MERA), and structural methods are tried \emph{before} quantization. Quantization is a last resort fallback (Tier~5).
+	\item \textbf{Adaptive per-tensor intelligence:} The \texttt{CompressionIntelligenceEngine} profiles each tensor across 40+ metrics (spectral entropy, effective rank, structural scores, etc.) and selects from 80+ methods via tiered scoring, historical learning, and performance prediction.
+	\item \textbf{Physics-inspired computation:} O($n$) mean-field attention via the Vlasov--Poisson system replaces quadratic O($n^2$) self-attention; hyperdimensional computing enables O(1) speculative decoding.
+	\item \textbf{Pure-Python with NumPy vectorization:} All operations use vectorized NumPy---no C++ extensions, no CUDA. This dramatically simplifies deployment, auditing, and modification.
+\end{enumerate}
+
+This whitepaper provides a comprehensive technical description of every component of SpectralStream, organized as follows. Section~\ref{sec:math} details the mathematical foundations across six domains. Section~\ref{sec:engine} describes the compression intelligence engine architecture. Section~\ref{sec:format} covers the SSF binary format. Section~\ref{sec:kvcache} presents the hierarchical KV cache system. Section~\ref{sec:inference} details the inference pipeline. Section~\ref{sec:certificates} describes the certificate and validation system. Section~\ref{sec:performance} presents performance characteristics, and Section~\ref{sec:conclusion} concludes.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Mathematical Foundations}
+\label{sec:math}
+% ═════════════════════════════════════════════════════════════════════
+
+SpectralStream integrates six mathematical traditions into a unified compression and inference framework.
+
+% ─────────────────────────────────────────────────────────────────────
+\subsection{Spectral \& Harmonic Analysis}
+\label{sec:spectral}
+% ─────────────────────────────────────────────────────────────────────
+
+The \emph{spectral} core of SpectralStream exploits the observation that neural network weight matrices exhibit strong energy compaction in frequency-domain representations.
+
+\paragraph{Discrete Cosine Transform (DCT).}
+The Type-II DCT is the primary spectral transform, chosen for its near-optimal energy compaction for natural signals and its real-valued (non-complex) output. The 1D DCT-II matrix is defined element-wise as:
+
+\begin{equation}
+	\label{eq:dct2}
+	\text{DCT}(n)_{k,j} =
+	\begin{cases}
+		\frac{1}{\sqrt{n}},                                         & k = 0, \\[2pt]
+		\sqrt{\frac{2}{n}}\cos\left(\frac{\pi k (j+0.5)}{n}\right), & k > 0.
+	\end{cases}
+\end{equation}
+
+The 2D DCT is separable: $\mathbf{Y} = \mathbf{C}_n \, \mathbf{X} \, \mathbf{C}_m^\mathsf{T}$, enabling efficient block-wise application. This is the direct mathematical heritage of JPEG image compression, adapted to neural network weight compression~\cite{ahmed1974dct}.
+
+\paragraph{Fast Walsh--Hadamard Transform (FWHT).}
+For Hadamard-based quantization and rotation, the in-place butterfly FWHT is used:
+
+\begin{equation}
+	\label{eq:fwht}
+	\text{FWHT}(\mathbf{x})_i = \sum_{j=0}^{N-1} (-1)^{\langle i, j \rangle} x_j,
+\end{equation}
+
+where $\langle i, j \rangle$ is the bitwise dot product. FWHT is self-inverse (up to scaling) and O($N \log N$).
+
+\paragraph{Wavelet Transforms.}
+Multi-resolution analysis via Haar (lifting scheme) and Daubechies-4 wavelets enables scale-dependent compression, where low-frequency approximation coefficients are preserved and high-frequency detail coefficients are thresholded.
+
+\paragraph{Number Theoretic Transform (NTT).}
+For lossless integer-domain convolution, NTT uses primes of the form $p = c \cdot 2^k + 1$ with automatic primitive root detection, enabling exact convolution without floating-point error.
+
+\paragraph{Spectral Analysis Tools.}
+The spectral analyzer computes: \emph{spectral entropy} $H_s = -\sum p_i \log_2 p_i / \log_2 N$ (normalized Shannon entropy of the power spectrum), \emph{energy concentration} (fraction of total energy in top-$k$ frequency bins), \emph{effective rank} $\rho = \exp(-\sum \tilde{\sigma}_i \log \tilde{\sigma}_i)$, and \emph{band-limiting} via low-pass Fourier filtering.
+
+% ─────────────────────────────────────────────────────────────────────
+\subsection{Hyperdimensional Computing}
+\label{sec:hdc}
+% ─────────────────────────────────────────────────────────────────────
+
+Hyperdimensional computing (HDC)~\cite{kanerva2009hyperdimensional} operates in a high-dimensional vector space (typically 10,000 dimensions) where random vectors are nearly orthogonal with high probability.
+
+\paragraph{Holographic Reduced Representations (HRR).}
+SpectralStream implements the HRR framework of Plate~\cite{plate2003holographic}:
+
+\begin{align}
+	\label{eq:hrr_bind}
+	\mathbf{a} \circledast \mathbf{b} & = \mathcal{F}^{-1}\{\mathcal{F}(\mathbf{a}) \odot \mathcal{F}(\mathbf{b})\},            \\
+	\label{eq:hrr_unbind}
+	\mathbf{a} \# \mathbf{b}          & = \mathcal{F}^{-1}\{\mathcal{F}(\mathbf{a}) \odot \overline{\mathcal{F}(\mathbf{b})}\}, \\
+	\label{eq:hrr_bundle}
+	\mathbf{a} \oplus \mathbf{b}      & = \mathbf{a} + \mathbf{b},
+\end{align}
+
+where $\circledast$ denotes circular convolution (binding), $\#$ denotes circular correlation (unbinding), and $\oplus$ denotes element-wise addition (bundling). Binding creates a vector dissimilar to both operands (for role--filler associations), while bundling maintains approximate similarity to all components (for set formation). The operations satisfy approximate inversion: $(\mathbf{a} \circledast \mathbf{b}) \# \mathbf{a} \approx \mathbf{b}$.
+
+\paragraph{HDC for Speculative Decoding.}
+The \texttt{HDCDraftEngine} uses 10,000-dimensional hypervectors for ultra-fast draft generation:
+\begin{itemize}
+	\item Each vocabulary token maps to a sparse hypervector (5\% density, random $\pm 1$ entries).
+	\item N-gram sequences (order 2--6) are bound via circular convolution, creating context-specific vectors.
+	\item Multi-prototype storage maintains up to 8 prototype HD vectors per context length, enabling diverse candidate generation.
+	\item Locality-Sensitive Hashing (LSH) tables enable O(1) nearest-prototype lookup, independent of vocabulary size.
+\end{itemize}
+This achieves O(1) next-token prediction---constant time regardless of vocabulary size---fundamentally different from the O($|V|$) softmax bottleneck.
+
+% ─────────────────────────────────────────────────────────────────────
+\subsection{Vlasov Mean-Field Attention}
+\label{sec:vlasov}
+% ─────────────────────────────────────────────────────────────────────
+
+The most novel mathematical contribution is the replacement of O($n^2$) quadratic attention with O($n$) mean-field attention modeled on the Vlasov--Poisson system from plasma physics~\cite{vlasov1968vlasov}.
+
+\paragraph{Physical Analogy.}
+Tokens are treated as charged particles in a plasma, evolving according to:
+
+\begin{equation}
+	\label{eq:vlasov}
+	\frac{\partial f}{\partial t} + \mathbf{v} \cdot \nabla_{\mathbf{x}} f - \nabla_{\mathbf{x}} \Phi \cdot \nabla_{\mathbf{v}} f = 0,
+	\qquad \nabla^2 \Phi = -\rho,
+\end{equation}
+
+where $f(\mathbf{x}, \mathbf{v}, t)$ is the phase-space distribution of tokens, $\rho(\mathbf{x}) = \int f\,d\mathbf{v}$ is the charge density (token concentration), and $\Phi(\mathbf{x})$ is the mean-field potential (attention field). Interactions are mediated by the Yukawa-screened potential:
+
+\begin{equation}
+	\label{eq:yukawa}
+	V(r) = \frac{4\pi}{k^2 + \mu^2} \quad\Longleftrightarrow\quad V(r) = \frac{A e^{-r/\mu}}{r + \varepsilon},
+\end{equation}
+
+where $\mu$ is the Debye screening length controlling interaction range.
+
+\paragraph{Algorithm.}
+The mean-field attention proceeds in O($n$) steps:
+
+\begin{enumerate}
+	\item \textbf{Charge Deposition} (O($n$)): Token keys project onto a spectral grid of size $n_\text{grid} \ll n$ via cloud-in-cell interpolation: $\rho[j] \mathrel{+}= w_j \|\mathbf{k}_i\|^2$.
+	\item \textbf{Poisson Solve} (O($n_\text{grid} \log n_\text{grid}$)): $\mathcal{F}(\rho) \to \tilde{V}(\mathbf{k}) \hat{\rho}(\mathbf{k}) \to \mathcal{F}^{-1}(\Phi)$.
+	\item \textbf{Potential Interpolation} (O($n$)): Grid potential interpolated back to token positions.
+	\item \textbf{Output Weighting} (O($n$)): $\mathbf{o}_i = \mathbf{v}_i \cdot \operatorname{softmax}(-\Phi_i / T)$.
+\end{enumerate}
+
+\paragraph{Variants.}
+Several extensions are implemented: \texttt{VlasovFlashAttention} (tiled, O($b \cdot d_h + n_\text{grid}$) per tile), \texttt{GyrokineticAttention} (DCT-based splitting into slow/semantic and fast/detail components with quadratic full attention for slow tokens only), \texttt{SymplecticAttentionIntegrator} (Hamiltonian leapfrog integration preserving phase-space volume), \texttt{HelmholtzDecomposition} (irrotational/solenoidal splitting), \texttt{TurbulentCascadeAttention} (Kolmogorov energy cascade across scales), and \texttt{AdaptiveDebyeAttention} (learnable screening length per head).
+
+% ─────────────────────────────────────────────────────────────────────
+\subsection{Tensor Networks}
+\label{sec:tensornet}
+% ─────────────────────────────────────────────────────────────────────
+
+Tensor networks from quantum many-body physics provide exponentially efficient representations of high-dimensional tensors by exploiting low entanglement structure~\cite{orús2014practical}.
+
+\paragraph{Matrix Product States / Tensor Trains.}
+An $N$-dimensional tensor $\mathcal{T} \in \mathbb{R}^{d_1 \times \cdots \times d_N}$ is decomposed into a chain of 3-core tensors via sequential SVD:
+
+\begin{equation}
+	\label{eq:mps}
+	\mathcal{T}_{i_1\ldots i_N} \approx \sum_{\alpha_1\ldots\alpha_{N-1}} A^{(1)}_{i_1,\alpha_1} A^{(2)}_{\alpha_1,i_2,\alpha_2} \cdots A^{(N)}_{\alpha_{N-1},i_N},
+\end{equation}
+
+with bond dimensions $\chi_k$ controlling compression fidelity. For a 2D weight matrix, this reduces to the standard truncated SVD: $\mathbf{W} \approx \mathbf{U}_k \mathbf{\Sigma}_k \mathbf{V}_k^\mathsf{T}$.
+
+\paragraph{MERA.}
+The Multi-scale Entanglement Renormalization Ansatz~\cite{vidal2007entanglement} provides a hierarchical binary tree structure with isometries ($\chi \times 2 \times \chi$) and disentanglers ($\chi \times \chi \times \chi \times \chi$) achieving O($\chi^3$) parameters independent of $N$---matching ADNTN results at 2000--77,000$\times$ compression.
+
+\paragraph{Additional Formats.}
+Tensor Ring (periodic boundary conditions), iPEPS (2D grid), Butterfly (recursive Kronecker products), and Einsort (adaptive index reordering) provide specialized representations for different tensor structures.
+
+% ─────────────────────────────────────────────────────────────────────
+\subsection{Compressed Sensing \& Information Theory}
+\label{sec:sensing}
+% ─────────────────────────────────────────────────────────────────────
+
+FISTA-based L1-minimization~\cite{beck2009fista} enables recovery of weight matrices from random projections:
+
+\begin{equation}
+	\label{eq:fista}
+	\min_{\mathbf{x}} \frac{1}{2}\|\mathbf{y} - \mathbf{A}\mathbf{x}\|_2^2 + \lambda\|\mathbf{x}\|_1,
+\end{equation}
+
+exploiting that weights are approximately sparse in DCT/wavelet bases. The information-theoretic pipeline terminates with entropy coding (ANS~\cite{duda2015asymmetric}, arithmetic, Huffman, range coding) achieving near-optimal compression given the quantized coefficient distribution.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Compression Intelligence Engine}
+\label{sec:engine}
+% ═════════════════════════════════════════════════════════════════════
+
+The \texttt{CompressionIntelligenceEngine} is the central orchestrator, implementing a five-stage pipeline: Profile $\to$ Allocate $\to$ Select $\to$ Compress $\to$ Validate.
+
+% ─────────────────────────────────────────────────────────────────────
+\subsection{Profiling}
+\label{sec:profiling}
+% ─────────────────────────────────────────────────────────────────────
+
+Each tensor is profiled across five analysis dimensions (40+ metrics total):
+
+\begin{itemize}
+	\item \textbf{Statistical:} mean, std, min/max, kurtosis, skewness, dynamic range, outlier ratio.
+	\item \textbf{Spectral:} effective rank, spectral decay rate, energy concentration, spectral entropy.
+	\item \textbf{Structural (2D):} Toeplitz score (diagonal constancy), circulant score (column-shift correlation), block-diagonal score (on-diagonal energy ratio), hierarchical score (quadrant correlation).
+	\item \textbf{Information:} entropy rate (16-state Markov), mutual information (cross-block correlation), Kolmogorov complexity (LZ dictionary ratio).
+	\item \textbf{Sparsity:} N:M structured (2:4, 4:8), block sparsity, unstructured sparsity.
+\end{itemize}
+
+Tensor type is classified by name (embedding, attention Q/K/V/O, FFN gate/up/down, etc.) and loaded with sensitivity weights ranging from 1.0 (embeddings, attention Q/O) to 0.50 (layer norms). Gradient-based sensitivity from calibration Fisher information can supplement name-based sensitivity.
+
+\subsection{Error Budget Allocation}
+
+The \texttt{ErrorBudgetAllocator} distributes error across tensors by sensitivity:
+
+\begin{equation}
+	\label{eq:budget}
+	\varepsilon_i = \min\left(\varepsilon_\text{max}, \frac{1}{R}\right) \cdot \left(3.0 \cdot (1.0 - w_i)^{1.5} + 0.3\right),
+\end{equation}
+
+where $w_i$ is the normalized sensitivity weight and $R$ is the target compression ratio. More sensitive tensors receive tighter budgets, clamped to $[10^{-4}, 0.05]$.
+
+\subsection{Dynamic Method Selection}
+
+The \texttt{DynamicIntelligenceSelector} scores all registered methods via:
+
+\begin{equation}
+	\label{eq:score}
+	S(m, t) = \underbrace{T_\text{score}(m)}_{\text{tier priority}} \times \underbrace{M(m, t)}_{\text{profile match}} \times \underbrace{P(m, t)}_{\text{predicted performance}} \times \underbrace{H(m, t)}_{\text{historical learning}},
+\end{equation}
+
+where $T_\text{score}$ assigns 10.0 for Tier~1 (decomposition, spectral, tensor network) down to 0.3 for Tier~5 (quantization). Methods are tried in score order; the first to meet the error budget while maximizing ratio is selected. Fallback chains ensure robustness: $\texttt{block\_int8} \to \texttt{block\_int4} \to \texttt{passthrough}$.
+
+\subsection{Method Taxonomy}
+
+The 80+ compression methods span 11 categories:
+
+\begin{enumerate}
+	\item \textbf{Decomposition} (Tier~1): SVD, Tensor Train, CP, Tucker, Kronecker, CUR, Nyström, Butterfly, Monarch, H-matrix, Toeplitz, Hankel, block-diagonal.
+	\item \textbf{Spectral} (Tier~1): DCT 1D/2D, block DCT, FWHT, wavelets (Haar, Daubechies, Symlet, scattering), FFT, NTT, Givens, Chebyshev, Winograd, random Hadamard.
+	\item \textbf{Structural} (Tier~2): Low-rank, NMF, BlockSparse, Circulant, Vandermonde, Cauchy, HSS, BSS, structured 2:4 sparsity, SparseGPT, Wanda pruning.
+	\item \textbf{Entropy Coding} (Tier~3): Huffman, ANS, tANS, arithmetic, LZ77, DEFLATE, BWT+MTF, predictive coding.
+	\item \textbf{Functional} (Tier~1): MLPMixer, FNet, Performer, LinearAttention, SIREN, neural ODE, symbolic regression, Fisher information.
+	\item \textbf{Physics-Inspired} (Tier~2): Vlasov mean-field, gyrokinetic, plasma oscillation, Debye shielding, density matrix, quantum state, quantum entanglement, topological data analysis.
+	\item \textbf{Tensor Network} (Tier~1): MERA, PEPS, QTT, DMRG, tensor ring, TT-cross, matrix product operator (MPO), quantum circuit simulation.
+	\item \textbf{Novel} (Tier~1): QuantumPlasmaFusion, HDC compression, HolographicReducedRank, Born machine, topological defects, time crystal, superposition decoding.
+	\item \textbf{Hybrid/Cascade} (Tier~4): 2/3/4-stage cascades combining transform $\to$ quantize $\to$ sparsify $\to$ entropy code in arbitrary order.
+	\item \textbf{Lossless} (Tier~3): Zstd, zlib, LZ4, RANS.
+	\item \textbf{Quantization} (Tier~5): Block INT8/4, Hadamard INT8/4, NF4, K-means, binary/ternary, GPTQ, AWQ, SqueezeLLM, lattice, product, mixed-precision.
+\end{enumerate}
+
+For extreme compression ratios ($>100:1$), the \texttt{MultiplicativeStackingEngine} chains methods (e.g., DCT + Tensor Train + rANS), and the ultra-compression path uses SVD with auto-tuned rank via the elbow method on the singular value spectrum.
+
+\subsection{Compression Format}
+
+Each \texttt{CompressedTensor} stores: raw compressed bytes, method identifier, parameters (block sizes, ranks, thresholds, quantization scales), quality metrics (relative error, SNR, PSNR, cosine similarity, compression ratio), and quality grade (S/A/B/C/D/F). Grades correspond to error thresholds: S $<0.02\%$, A $<0.1\%$, B $<0.5\%$, C $<1\%$, D $<5\%$, F $\ge5\%$.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{SpectralStream Format (SSF)}
+\label{sec:format}
+% ═════════════════════════════════════════════════════════════════════
+
+The SSF binary format (v2/v3) is a page-aligned container with cryptographic integrity verification.
+
+\subsection{Binary Layout}
+
+\begin{equation}
+	\label{eq:layout}
+	\underbrace{[\text{Header}]}_{256\text{B}} \to \underbrace{[\text{Pad}]}_{\text{4KB}} \to \underbrace{[\text{Tensor Data}]}_{\text{page-aligned}} \to \underbrace{[\text{Index}]}_{\text{variable}} \to \underbrace{[\text{Metadata}]}_{\text{gzip JSON}} \to \underbrace{[\text{Footer}]}_{128\text{B}}
+\end{equation}
+
+\subsection{Header Structure}
+The 256-byte header (packed as \texttt{<4sIIIQQQQQQQ184s}) contains: magic bytes (\texttt{SSF\x02}), format version (2 or 3), flags, tensor count, file offsets for index, metadata, and tensor data, redundant header offset (at page 1 for recovery), and footer offset. Space for 184 zero-filled spare bytes ensures future extensibility.
+
+\subsection{Tensor Index}
+Each variable-length \texttt{TensorIndexEntry} encodes: name (UTF-8), shape, dtype (F32/F16/BF16/INT8/INT4/U8), compression method ID (mapped via a 79-method dictionary), JSON-encoded parameters, data offset/size, SHA-256 checksum of the compressed block, and five quality doubles (relative error, SNR, PSNR, cosine similarity, ratio).
+
+\subsection{Reader and Writer}
+\texttt{SSFReader} supports memory-mapped (mmap) zero-copy reads for large files, LRU tensor decompression cache, row-chunk reads for 2D tensors (without full decompression), cryptographic checksum verification on every read, and subset extraction via \texttt{SSFWriter}. \texttt{SSFWriter} writes page-aligned (4096-byte) sections in a single pass, computes file-level SHA-256 checksums in the footer, and supports streaming (one-tensor-at-a-time) mode.
+
+\subsection{Format Bridges}
+\texttt{SSFConverter} converts from GGUF (with GGML dequantization), HuggingFace safetensors, and NumPy dictionaries. The \texttt{\_compress\_via\_engine} bridge maps method IDs to engine compression methods for on-the-fly decompression during read.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Hierarchical KV Cache}
+\label{sec:kvcache}
+% ═════════════════════════════════════════════════════════════════════
+
+The KV cache system (\textasciitilde3000 lines) is a production-grade subsystem with four components: core data structures, manager, compressor, and eviction policies.
+
+\subsection{Cache Architecture}
+The \texttt{KVCacheManager} orchestrates per-layer \texttt{OrderedDict} caches with 40+ configuration parameters controlling compression method, quantize bits, Hadamard rotation, spectral keep fraction, wavelet decomposition level, SVD/TT rank, codebook size, and cache size limit (default 4~GB).
+
+\subsection{Adaptive Compression Selection}
+Compression method is selected based on cache pressure (ratio of current memory to limit):
+
+\begin{equation}
+	\label{eq:pressure}
+	\text{method} =
+	\begin{cases}
+		\text{\texttt{fwht\_int4}} + \text{residual VQ},    & p > 0.8\ \text{(critical)},         \\
+		\text{\texttt{fwht\_int8}} + \text{DCT sparse},     & 0.6 < p \le 0.8\ \text{(high)},     \\
+		\text{Hadamard} + \text{spectral} + \text{wavelet}, & 0.4 < p \le 0.6\ \text{(moderate)}, \\
+		\text{configured method},                           & p \le 0.4\ \text{(low)}.
+	\end{cases}
+\end{equation}
+
+\subsection{Eviction Policies}
+Thirteen eviction policies are implemented:
+\begin{enumerate}
+	\item \textbf{SpectralEviction} (default): composite score of spectral entropy, Landau--Zener coherence decay (half-life 1000 steps), recency, and access frequency.
+	\item \textbf{H2OEviction}: bottom percentile by attention score~\cite{zhang2023h2o}.
+	\item \textbf{SlidingWindow}: oldest position evicted.
+	\item \textbf{StreamingLLM}: protects first 4 tokens~\cite{xiao2023streamingllm}.
+	\item \textbf{ResonanceEviction}: physics-inspired, tracks frequency-domain resonance via FFT of score history.
+	\item \textbf{EntropyEviction}: minimum spectral entropy.
+	\item \textbf{PredictiveEviction}: linear regression on access history.
+	\item \textbf{ClusteringEviction}: K-means clustering of key vectors.
+	\item \textbf{TopologicalEviction}: eigendecomposition of key similarity matrix.
+	\item \textbf{ReinforcementLearning}: 4-arm bandit with $\varepsilon$-greedy ($\varepsilon=0.1$).
+	\item \textbf{HybridEviction}: voting ensemble of 4 policies.
+	\item \textbf{StalenessAware}: exponential time decay.
+	\item \textbf{EntropyGradient}: minimum entropy rate of change.
+\end{enumerate}
+
+\subsection{Cache Compressor}
+Thirty compression method implementations operate on individual KV entries, organized into families: transform-domain quantization (FWHT-int8/4, Hadamard+Lloyd--Max, DCT-sparse, FFT, wavelets, Chebyshev), low-rank (SVD, tensor train), vector quantization (K-means VQ, product quantization, 3-stage residual VQ), temporal/predictive (delta encoding, AR prediction order 4, cross-layer delta), physics-inspired (holographic HRR binding, Vlasov distribution, quantum state angle encoding, time crystal periodic approximation), adaptive (context-aware method selection based on spectral entropy, heavy hitter protection), and lattice (E8 Gosset lattice quantization).
+
+\subsection{Additional Features}
+Auto-tuning every 50 steps adjusts quantization bits based on hit rate; progressive compression re-compresses with stronger methods at $>70\%$ pressure; SSD tiering offloads cold entries beyond $50\%$ memory usage; cache coherence monitoring computes key-vector similarity fragmentation metrics; and simulated annealing optimizes eviction temperature.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Inference Pipeline}
+\label{sec:inference}
+% ═════════════════════════════════════════════════════════════════════
+
+The \texttt{InferencePipeline} (670 lines) provides production-grade CPU inference with a three-tier model loading fallback chain: SSF reader $\to$ ModelLoader (binary parser) $\to$ SafeTensorsLoader (HF adapter with bfloat16-to-float32 conversion).
+
+\subsection{Model Architecture Support}
+The pipeline supports Gemma 4 (E2B: 35 layers, 1536 hidden, 8/1 GQA; E4B: 42 layers, 2560 hidden, 8/2 GQA) with full architectural features: grouped query attention with RoPE ($\theta=10^6$), sliding window (512 tokens, 5 of 6 layers), shared KV layers (last 20), embedding scaling by $\sqrt{d_\text{model}}$, weight tying, GELU-tanh activation, Gemma4RMSNorm, and attention/logit softcapping. Configuration parameters extend to 131,072 token context and 262,144 vocabulary.
+
+\subsection{Forward Pass}
+For each transformer layer: RMSNorm $\to$ QKV projections $\to$ RoPE rotation $\to$ multi-head GQA with sliding window and attention softcap $\to$ output projection with residual $\to$ FFN RMSNorm $\to$ gated SiLU/GELU FFN with residual. The Gemma4FFN uses the tanh approximation:
+
+\begin{equation}
+	\label{eq:gelu_tanh}
+	\text{GELU}_\text{tanh}(x) = 0.5x\left(1 + \tanh\left(\sqrt{2/\pi}\,(x + 0.044715 x^3)\right)\right).
+\end{equation}
+
+\subsection{Speculative Decoding}
+The \texttt{SpeculativeDecoder} implements draft-verify decoding~\cite{leviathan2023speculative} with $\gamma=4$ draft tokens per verification pass, adaptive acceptance rate tracking, and best-of-N draft candidate selection from the HDC draft engine.
+
+\subsection{Generation}
+Sampling pipeline: temperature scaling $\to$ top-K filtering via $\texttt{argpartition}$ $\to$ softmax $\to$ top-P (nucleus) filtering $\to$ categorical sampling. Streaming generation yields tokens as produced. Perplexity measurement on random 1024-token windows is available.
+
+\subsection{Benchmark Suite}
+The \texttt{BenchmarkRunner} provides six benchmark categories: throughput (tokens/second at batch sizes 1/2/4 and sequence lengths 128/512/2048), per-method compression evaluation, quality distribution analysis, memory profiling, multi-configuration comparison grid search, and Pareto frontier identification for optimal (ratio, error) tradeoffs. Output formats include JSON, LaTeX tables, and human-readable summaries.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Certificate and Validation System}
+\label{sec:certificates}
+% ═════════════════════════════════════════════════════════════════════
+
+Professional-grade certificates provide auditable quality assurance for every compression operation.
+
+\subsection{Certificate Hierarchy}
+Three certificate types are generated:
+
+\begin{enumerate}
+	\item \textbf{\texttt{TensorCertificate}}: per-tensor metrics---name, shape, original/compressed bytes, ratio, method, category, relative error, SNR, PSNR, cosine similarity, MSE, timing, quality grade (S/A/B/C/D/F).
+	\item \textbf{\texttt{CompressionCertificate}}: full model---architecture, parameters, overall ratio, weighted/avg/max error, avg SNR, grade and method distributions, per-method-grade breakdown, and industry comparison against FP16 (2$\times$), INT8 (4$\times$), INT4 (8$\times$), NF4 (4$\times$), GPTQ (8$\times$), AWQ (8$\times$), GGML Q4\_0 (4.5$\times$), GGML Q8\_0 (2.5$\times$), and SqueezeLLM (8$\times$).
+	\item \textbf{\texttt{ValidationCertificate}}: SSF structural integrity---header, checksum, index verification, per-tensor decompression and comparison against originals.
+\end{enumerate}
+
+\subsection{Output Formats}
+All three certificate types generate four output formats: JSON (machine-readable), HTML (dark-themed with badges, progress bars, and gradient headers), Markdown (README-ready tables), and plain text (terminal display with box-drawing characters). The \texttt{CertificateBuilder} provides factory methods \texttt{from\_compression\_report()} and \texttt{from\_compressed\_tensors()}.
+
+\subsection{End-to-End Validation Pipeline}
+The \texttt{scripts/e2e\_validation.py} script orchestrates the full pipeline: synthetic model generation (low-rank structure with controlled noise to simulate real compressible weights), engine compression round-trip, SSF format write/read round-trip, multi-format certificate generation, and threshold enforcement (default: avg error $\le 1\%$, overall ratio $\ge 50:1$). Exit code 0 indicates all thresholds met; exit code 1 indicates breach with detailed diagnostics.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Performance and Characteristics}
+\label{sec:performance}
+% ═════════════════════════════════════════════════════════════════════
+
+\subsection{Compression Performance}
+The intelligence engine achieves extreme compression ratios through the synergistic combination of methods. Spectral methods (Tier~1) typically achieve 20--200$\times$ on single tensors; tensor network methods (MERA, TT) reach 200--77,000$\times$ on structured matrices; cascade methods compound these multiplicatively. The adaptive selector ensures that each tensor receives the method best suited to its specific structure.
+
+\subsection{Computational Efficiency}
+All operations are vectorized via NumPy. Key operations achieve: FWHT O($N \log N$) via butterfly; 2D DCT O($N^2$) via separable matrix multiply; truncated SVD O($\min(mn^2, m^2n)$) via full SVD or O($mnk$) via randomized SVD~\cite{halko2011randomized}. The pure-Python implementation with no C++ extensions dramatically simplifies deployment, auditing, and cross-platform compatibility, at the cost of being bound by NumPy's BLAS backend for large tensor operations.
+
+\subsection{Memory Architecture}
+The system manages memory at multiple levels: tensor-level streaming (one tensor at a time), SSF-level memory-mapped access with LRU decompressed tensor cache (configurable GB), KV cache size limits with automatic SSD tiering, process memory tracking via psutil, and automatic garbage collection with GC-triggered streaming fallback.
+
+\subsection{Scalability}
+The framework handles models with up to hundreds of billions of parameters via streaming mode, 131,072-token contexts via the KV cache system, 262,144 vocabulary via HD-based speculative decoding that avoids full softmax, and up to 42-layer architectures with shared KV and sliding window attention.
+
+% ═════════════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+% ═════════════════════════════════════════════════════════════════════
+
+SpectralStream provides a unified framework for neural network compression and efficient inference that spans six mathematical traditions, 80+ compression methods, a production-grade inference pipeline, a hierarchical KV cache with 30+ compression methods and 13 eviction policies, and a professional certificate system. By reversing the conventional quantization-first approach and instead prioritizing spectral, structural, and tensor-network decompositions, SpectralStream achieves compression ratios that are orders of magnitude beyond conventional quantization.
+
+The framework's pure-Python implementation with NumPy vectorization demonstrates that high-performance neural network compression does not require C++ extensions or CUDA kernels, making it uniquely accessible for research, auditing, and customization. All components---from mathematical primitives to the inference pipeline and certificate system---are designed as modular, composable building blocks that can be extended, replaced, or studied independently.
+
+\subsection*{Future Directions}
+Planned developments include GPU-accelerated tensor operations via JAX/CuPy backends, on-device inference for mobile and edge deployment, adaptive quantization that dynamically adjusts precision during generation, and integration with additional model architectures beyond the current Gemma 4 support.
+
+\begin{thebibliography}{99}
+
+	\bibitem{ahmed1974dct}
+	N.~Ahmed, T.~Natarajan, and K.~R.~Rao, ``Discrete cosine transform,''
+	\emph{IEEE Trans.\ Computers}, vol.~C-23, no.~1, pp.~90--93, 1974.
+
+	\bibitem{kanerva2009hyperdimensional}
+	P.~Kanerva, ``Hyperdimensional computing: An introduction to computing in
+	distributed representation with high-dimensional random vectors,''
+	\emph{Cognitive Computation}, vol.~1, no.~2, pp.~139--159, 2009.
+
+	\bibitem{plate2003holographic}
+	T.~A.~Plate, \emph{Holographic Reduced Representation: Distributed
+		Representation for Cognitive Structures}. CSLI Publications, 2003.
+
+	\bibitem{vlasov1968vlasov}
+	A.~A.~Vlasov, ``The vibrational properties of an electron gas,''
+	\emph{Soviet Physics Uspekhi}, vol.~10, no.~6, pp.~721--733, 1968.
+
+	\bibitem{orús2014practical}
+	R.~Orús, ``A practical introduction to tensor networks: Matrix product
+	states and projected entangled pair states,''
+	\emph{Annals of Physics}, vol.~349, pp.~117--158, 2014.
+
+	\bibitem{vidal2007entanglement}
+	G.~Vidal, ``Entanglement renormalization,''
+	\emph{Phys.\ Rev.\ Lett.}, vol.~99, no.~22, p.~220405, 2007.
+
+	\bibitem{beck2009fista}
+	A.~Beck and M.~Teboulle, ``A fast iterative shrinkage-thresholding
+	algorithm for linear inverse problems,''
+	\emph{SIAM J.\ Imaging Sciences}, vol.~2, no.~1, pp.~183--202, 2009.
+
+	\bibitem{duda2015asymmetric}
+	J.~Duda, K.~Tahboub, N.~J.~Gadgil, and E.~J.~Delp, ``The use of asymmetric
+	numeral systems as an accurate replacement for Huffman coding,''
+	in \emph{Proc.\ Picture Coding Symposium}, 2015, pp.~65--69.
+
+	\bibitem{frantar2023gptq}
+	E.~Frantar, S.~Ashkboos, T.~Hoefler, and D.~Alistarh, ``GPTQ: Accurate
+	post-training quantization for generative pre-trained transformers,''
+	in \emph{Proc.\ ICLR}, 2023.
+
+	\bibitem{lin2024awq}
+	J.~Lin \emph{et al.}, ``AWQ: Activation-aware weight quantization for LLM
+	compression and acceleration,''
+	in \emph{Proc.\ MLSys}, 2024.
+
+	\bibitem{frantar2023sparsegpt}
+	E.~Frantar and D.~Alistarh, ``SparseGPT: Massive language models can be
+	accurately pruned in one-shot,''
+	in \emph{Proc.\ ICML}, 2023.
+
+	\bibitem{sun2023wanda}
+	M.~Sun \emph{et al.}, ``Wanda: A simple and effective pruning approach for
+	large language models,''
+	in \emph{Proc.\ NeurIPS}, 2023.
+
+	\bibitem{hinton2015distilling}
+	G.~Hinton, O.~Vinyals, and J.~Dean, ``Distilling the knowledge in a neural
+	network,''
+	arXiv:1503.02531, 2015.
+
+	\bibitem{gerganov2023ggml}
+	G.~Gerganov, ``ggml: Tensor library for machine learning,''
+	\url{https://github.com/ggerganov/ggml}, 2023.
+
+	\bibitem{zhang2023h2o}
+	Z.~Zhang \emph{et al.}, ``H2O: Heavy-hitter oracle for efficient generative
+	inference of large language models,''
+	in \emph{Proc.\ NeurIPS}, 2023.
+
+	\bibitem{xiao2023streamingllm}
+	G.~Xiao \emph{et al.}, ``StreamingLLM: Efficient streaming language models
+	with attention sinks,''
+	arXiv:2309.17453, 2023.
+
+	\bibitem{leviathan2023speculative}
+	Y.~Leviathan, M.~Kalman, and Y.~Matias, ``Fast inference from transformers
+	via speculative decoding,''
+	in \emph{Proc.\ ICML}, 2023.
+
+	\bibitem{halko2011randomized}
+	N.~Halko, P.~G.~Martinsson, and J.~A.~Tropp, ``Finding structure with
+	randomness: Probabilistic algorithms for constructing approximate matrix
+	decompositions,''
+	\emph{SIAM Review}, vol.~53, no.~2, pp.~217--288, 2011.
+
+\end{thebibliography}
+
+\end{document}

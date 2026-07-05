@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% set active_page = "models" %}
+
+{% block title %}Models — SpectralStream{% endblock %}
+{% block header_title %}Model Management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Models</h1>
+    <p class="page-subtitle">Manage loaded inference models and compression certificates</p>
+  </div>
+  <button class="btn btn-primary" onclick="showLoadModal()">
+    <span class="icon">+</span> Load Model
+  </button>
+</div>
+
+<!-- Model Grid -->
+{% if models and models|length > 0 %}
+<div class="model-grid">
+  {% for name, info in models.items() %}
+  <div class="glass-card model-card" onclick="showModelDetail('{{ name }}')">
+    <div class="model-card-header">
+      <div>
+        <div class="model-name">{{ name }}</div>
+        <div class="model-meta">
+          <span class="model-meta-item">
+            ▤ {{ '%.2f'|format(info.get('size_gb', 0)) }} GB
+          </span>
+          <span class="model-meta-item">
+            ◉ {{ info.get('loaded_at', 0)|timestamp_format if timestamp_format is defined else 'N/A' }}
+          </span>
+        </div>
+      </div>
+      <span class="badge badge-success">Active</span>
+    </div>
+    <div class="model-card-body">
+      <div class="model-progress">
+        {% if info.get('compression_ratio') %}
+        <div class="flex justify-between mb-1">
+          <span class="text-xs text-muted">Compression Ratio</span>
+          <span class="text-xs text-secondary">{{ '%.2f'|format(info.compression_ratio) }}x</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style="width:{{ info.get('compression_ratio', 1) * 25 }}%"></div>
+        </div>
+        {% else %}
+        <span class="text-xs text-muted">No compression data available</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="glass-card">
+  <div class="empty-state">
+    <div class="empty-state-icon">▦</div>
+    <div class="empty-state-title">No Models Loaded</div>
+    <p class="empty-state-description">
+      Load a compressed .ssf model file to start serving inference requests.
+    </p>
+    <button class="btn btn-primary" onclick="showLoadModal()">
+      <span class="icon">+</span> Load Model
+    </button>
+  </div>
+</div>
+{% endif %}
+
+<!-- Load Model Modal -->
+<div class="modal-overlay" id="loadModal" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h4 class="modal-title">Load Model</h4>
+      <button class="modal-close" onclick="hideLoadModal()">✕</button>
+    </div>
+    <form id="loadModelForm" onsubmit="loadModel(event)">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Model File</label>
+          <div class="file-picker">
+            <span class="file-picker-icon">▤</span>
+            <div class="file-picker-text">
+              <strong>Click to browse</strong> or drag .ssf file<br/>
+              <small class="text-muted">Supported: .ssf, .safetensors</small>
+            </div>
+            <input type="file" id="modelFileInput" accept=".ssf,.safetensors,.bin" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cache Size</label>
+          <input type="number" class="form-input" id="cacheSizeInput" value="4.0" step="0.5" min="0.5" />
+          <span class="form-hint">KV cache size in GB</span>
+        </div>
+        <div class="alert alert-info">
+          Loading may take a few seconds for large models.
+        </div>
+        <div id="loadStatus" style="display:none;" class="mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="hideLoadModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="loadSubmitBtn">
+          <span class="icon">+</span> Load
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Model Detail Modal -->
+<div class="modal-overlay" id="detailModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h4 class="modal-title" id="detailName">Model Details</h4>
+      <button class="modal-close" onclick="hideDetailModal()">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody">
+      <div class="flex items-center justify-center" style="padding:var(--space-8);">
+        <div class="spinner spinner-lg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function showLoadModal() {
+  document.getElementById('loadModal').style.display = 'flex';
+  document.getElementById('loadStatus').style.display = 'none';
+}
+function hideLoadModal() {
+  document.getElementById('loadModal').style.display = 'none';
+}
+
+async function loadModel(e) {
+  e.preventDefault();
+  const btn = document.getElementById('loadSubmitBtn');
+  const status = document.getElementById('loadStatus');
+  const fileInput = document.getElementById('modelFileInput');
+
+  if (!fileInput.files || !fileInput.files[0]) {
+    status.style.display = 'block';
+    status.className = 'alert alert-error mt-2';
+    status.textContent = 'Please select a model file.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner spinner-sm spinner-white"></div> Loading...';
+  status.style.display = 'none';
+
+  try {
+    const res = await fetch('/v1/models/load', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer sk-spectralstream-dev',
+      },
+      body: JSON.stringify({
+        model_path: fileInput.files[0].name,
+        cache_size_gb: parseFloat(document.getElementById('cacheSizeInput').value) || 4.0,
+      }),
+    });
+
+    const data = await res.json();
+    status.style.display = 'block';
+
+    if (res.ok) {
+      status.className = 'alert alert-success mt-2';
+      status.textContent = 'Model "' + data.model + '" loaded successfully!';
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      status.className = 'alert alert-error mt-2';
+      status.textContent = data.detail || 'Failed to load model.';
+    }
+  } catch (e) {
+    status.style.display = 'block';
+    status.className = 'alert alert-error mt-2';
+    status.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="icon">+</span> Load';
+  }
+}
+
+function showModelDetail(name) {
+  document.getElementById('detailModal').style.display = 'flex';
+  document.getElementById('detailName').textContent = name;
+
+  const body = document.getElementById('detailBody');
+  body.innerHTML = `
+    <div class="flex flex-col gap-4">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Model Name</label>
+          <div class="font-mono text-sm">${name}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <div><span class="badge badge-success">Active</span></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="text-center text-muted text-sm">
+        Detailed model metrics available in the Compression Certificate viewer.
+      </div>
+      <div class="flex gap-3 justify-center">
+        <a href="/certificate" class="btn btn-ghost btn-sm">View Certificate</a>
+        <button class="btn btn-ghost-danger btn-sm" onclick="unloadModel('${name}')">Unload</button>
+      </div>
+    </div>
+  `;
+}
+function hideDetailModal() {
+  document.getElementById('detailModal').style.display = 'none';
+}
+
+async function unloadModel(name) {
+  if (!confirm('Unload model "' + name + '"?')) return;
+  // Model unloading would need a backend endpoint
+  showToast('Model unload is not yet implemented via API', 'warning');
+}
+</script>
+{% endblock %}

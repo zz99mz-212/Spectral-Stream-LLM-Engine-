@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% set active_page = "chat" %}
+
+{% block title %}Chat — SpectralStream{% endblock %}
+{% block header_title %}Chat Interface{% endblock %}
+
+{% block content %}
+<div class="glass-card chat-container">
+  <!-- Messages Area -->
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-message system">
+      <div class="chat-bubble">
+        Welcome to SpectralStream Chat. Select a model and start generating.
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="chat-controls" style="padding:var(--space-3) var(--space-4);border-top:1px solid var(--border-color);">
+    <div class="chat-control-group">
+      <span class="chat-control-label">Model</span>
+      <select class="form-select" id="modelSelect" style="width:auto;min-width:140px;padding:var(--space-1) var(--space-3);font-size:var(--font-size-xs);">
+        {% if models %}
+          {% for m in models %}
+          <option value="{{ m }}">{{ m }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="default">default</option>
+        {% endif %}
+      </select>
+    </div>
+    <div class="chat-control-group">
+      <span class="chat-control-label">Temp</span>
+      <input type="range" class="form-range" id="tempSlider" min="0" max="2" step="0.05" value="0.7" style="width:80px;" />
+      <span class="chat-control-value" id="tempValue">0.70</span>
+    </div>
+    <div class="chat-control-group">
+      <span class="chat-control-label">Top P</span>
+      <input type="range" class="form-range" id="topPSlider" min="0" max="1" step="0.01" value="0.95" style="width:80px;" />
+      <span class="chat-control-value" id="topPValue">0.95</span>
+    </div>
+    <div class="chat-control-group">
+      <span class="chat-control-label">Max</span>
+      <input type="range" class="form-range" id="maxTokensSlider" min="16" max="4096" step="16" value="1024" style="width:80px;" />
+      <span class="chat-control-value" id="maxTokensValue">1024</span>
+    </div>
+    <div class="ml-auto flex gap-2">
+      <button class="btn btn-ghost btn-sm" id="clearChatBtn" title="Clear chat">✕ Clear</button>
+    </div>
+  </div>
+
+  <!-- Input Area -->
+  <div class="chat-input-container">
+    <div class="token-counter" id="tokenCounter">0 tokens</div>
+    <div class="chat-input-wrapper">
+      <textarea
+        class="chat-input"
+        id="chatInput"
+        rows="1"
+        placeholder="Type your message... (Enter to send, Ctrl+Enter for new line)"
+      ></textarea>
+      <button class="chat-send-btn" id="sendBtn" title="Send">➤</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+const modelSelect = document.getElementById('modelSelect');
+const tempSlider = document.getElementById('tempSlider');
+const topPSlider = document.getElementById('topPSlider');
+const maxTokensSlider = document.getElementById('maxTokensSlider');
+const tempValue = document.getElementById('tempValue');
+const topPValue = document.getElementById('topPValue');
+const maxTokensValue = document.getElementById('maxTokensValue');
+const tokenCounter = document.getElementById('tokenCounter');
+const clearChatBtn = document.getElementById('clearChatBtn');
+
+let isGenerating = false;
+let tokenCount = 0;
+let abortController = null;
+
+// Slider display sync
+tempSlider.addEventListener('input', () => { tempValue.textContent = parseFloat(tempSlider.value).toFixed(2); });
+topPSlider.addEventListener('input', () => { topPValue.textContent = parseFloat(topPSlider.value).toFixed(2); });
+maxTokensSlider.addEventListener('input', () => { maxTokensValue.textContent = maxTokensSlider.value; });
+
+// Auto-resize textarea
+chatInput.addEventListener('input', () => {
+  chatInput.style.height = 'auto';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+});
+
+// Keyboard shortcuts
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+function addMessage(role, content, isStreaming = false) {
+  const div = document.createElement('div');
+  div.className = 'chat-message ' + role;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'chat-avatar ' + role;
+  avatar.textContent = role === 'user' ? 'U' : role === 'assistant' ? 'A' : '●';
+  div.appendChild(avatar);
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+
+  if (isStreaming) {
+    bubble.id = 'streamingBubble';
+  }
+
+  // Simple markdown-style formatting
+  let formatted = escapeHtml(content);
+  formatted = formatted.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+  formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  formatted = formatted.replace(/\n/g, '<br/>');
+  bubble.innerHTML = formatted;
+
+  div.appendChild(bubble);
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return bubble;
+}
+
+function addTypingIndicator() {
+  const div = document.createElement('div');
+  div.className = 'chat-message assistant';
+  div.id = 'typingIndicator';
+  const avatar = document.createElement('div');
+  avatar.className = 'chat-avatar assistant';
+  avatar.textContent = 'A';
+  div.appendChild(avatar);
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble typing-indicator';
+  bubble.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+  div.appendChild(bubble);
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function updateTokenCounter(count) {
+  tokenCount = count;
+  tokenCounter.textContent = count + ' tokens';
+  if (count > 0) {
+    tokenCounter.classList.add('active');
+  } else {
+    tokenCounter.classList.remove('active');
+  }
+}
+
+async function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text || isGenerating) return;
+
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+  addMessage('user', text);
+
+  // Reset token count
+  updateTokenCounter(0);
+
+  // Show typing indicator
+  addTypingIndicator();
+  isGenerating = true;
+  sendBtn.disabled = true;
+  chatInput.disabled = true;
+
+  try {
+    const model = modelSelect.value;
+    const temperature = parseFloat(tempSlider.value);
+    const topP = parseFloat(topPSlider.value);
+    const maxTokens = parseInt(maxTokensSlider.value);
+
+    const res = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer sk-spectralstream-dev' },
+      body: JSON.stringify({
+        model: model,
+        messages: [{ role: 'user', content: text }],
+        temperature: temperature,
+        top_p: topP,
+        max_tokens: maxTokens,
+        stream: false,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      removeTypingIndicator();
+      addMessage('assistant', 'Error: ' + (err.detail || err.message || 'Request failed'));
+      return;
+    }
+
+    removeTypingIndicator();
+
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content || '(empty response)';
+    addMessage('assistant', content);
+    updateTokenCounter(data.usage?.completion_tokens || 0);
+
+  } catch (e) {
+    removeTypingIndicator();
+    addMessage('system', 'Connection error: ' + e.message);
+  } finally {
+    isGenerating = false;
+    sendBtn.disabled = false;
+    chatInput.disabled = false;
+    chatInput.focus();
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+
+// Clear chat
+clearChatBtn.addEventListener('click', () => {
+  chatMessages.innerHTML = `
+    <div class="chat-message system">
+      <div class="chat-bubble">Chat cleared. Start a new conversation.</div>
+    </div>`;
+  updateTokenCounter(0);
+});
+
+// Enable streaming: override sendMessage if stream option is desired
+// For now, non-streaming is default; could add a toggle for streaming
+</script>
+{% endblock %}

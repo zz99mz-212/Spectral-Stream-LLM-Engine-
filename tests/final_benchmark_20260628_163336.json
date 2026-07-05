@@ -1,0 +1,51 @@
+{
+  "Gemma 4 E2B": {
+    "model": "Gemma 4 E2B",
+    "variant": "E2B",
+    "size_gb": 2.89,
+    "vocab_size": 262144,
+    "d_model": 1536,
+    "n_layers": 35,
+    "train_time_ms": 169.3,
+    "tokens_per_second": 38327.8,
+    "hdc_ratio": 0.848,
+    "hdc_acceptance": 0.8482,
+    "hdc_latency_ns": 21166,
+    "hdc_targets": 1047,
+    "peak_memory_mb": 0.0,
+    "multi_turn_tok_s": 26572.5,
+    "coherence_valid": true,
+    "per_prompt": [
+      {
+        "type": "coding",
+        "tokens_per_second": 31580.641882352942,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=0.93",
+        "text": "#tpa ^VSVU]m ]>t#a>q q>]Q#>Qp +aU pSSV]Qm >]Y  >  V]p qp>a]V]Q"
+      },
+      {
+        "type": "conversation",
+        "tokens_per_second": 38244.116825758654,
+        "hdc_ratio": 1.0,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=0.74",
+        "text": "]Y  >  V]p qp>a]V]Q  >S p^Uq^pY SVQ]VfV >]tq  U^pa t p +>St Yp >"
+      },
+      {
+        "type": "explanation",
+        "tokens_per_second": 48877.54115076475,
+        "hdc_ratio": 0.9635,
+        "coherence_valid": true,
+        "coherence_reason": "coherence=0.82",
+        "text": "^Uq^pY SVQ]VfV >]tq  U^pa t p +>St Yp >Yp  Tpp+ qp>a]V]Q      !\""
+      }
+    ],
+    "projections": {
+      "1": 38327.8,
+      "8": 1189464.9,
+      "16": 2994852.3,
+      "64": 14866120.2
+    }
+  }
+}

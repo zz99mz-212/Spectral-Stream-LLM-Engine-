@@ -1,0 +1,60 @@
+{
+  "Gemma 4 E2B": {
+    "model": "Gemma 4 E2B",
+    "model_path": "/home/mike/Documents/Github/SpectralStream/models/gemma-4-E2B-it-Q4_K_M.gguf",
+    "variant": "E2B",
+    "avg_tokens_per_second": 260.4,
+    "avg_hdc_ratio": 0.5,
+    "total_tokens": 48,
+    "total_time": 0.18,
+    "model_component_tok_s": 130.2,
+    "hdc_component_tok_s": 520.9,
+    "effective_1_agent": 208.3,
+    "projections": {
+      "1": 260.4,
+      "4": 1666.8,
+      "8": 3703.9,
+      "16": 7843.6,
+      "32": 16162.5,
+      "64": 32822.4,
+      "128": 66153.6
+    },
+    "hdc_targets": 999,
+    "hdc_prototypes": 1070,
+    "vocab_size": 262144,
+    "d_model": 1536,
+    "n_layers": 35,
+    "hdc_acceptance": 0.5,
+    "hdc_latency_ns": 6916.9,
+    "confidence_threshold": 0.1
+  },
+  "Gemma 4 E4B": {
+    "model": "Gemma 4 E4B",
+    "model_path": "/home/mike/Documents/Github/SpectralStream/models/gemma-4-E4B-it-Q4_K_M.gguf",
+    "variant": "E4B",
+    "avg_tokens_per_second": 264.2,
+    "avg_hdc_ratio": 0.5,
+    "total_tokens": 48,
+    "total_time": 0.18,
+    "model_component_tok_s": 132.1,
+    "hdc_component_tok_s": 528.3,
+    "effective_1_agent": 211.3,
+    "projections": {
+      "1": 264.2,
+      "4": 1690.6,
+      "8": 3756.9,
+      "16": 7955.8,
+      "32": 16393.8,
+      "64": 33292.1,
+      "128": 67100.4
+    },
+    "hdc_targets": 999,
+    "hdc_prototypes": 1070,
+    "vocab_size": 262144,
+    "d_model": 2560,
+    "n_layers": 42,
+    "hdc_acceptance": 0.5,
+    "hdc_latency_ns": 6194.0,
+    "confidence_threshold": 0.1
+  }
+}

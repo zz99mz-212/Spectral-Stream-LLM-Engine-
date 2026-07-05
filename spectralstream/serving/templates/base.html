@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <title>{% block title %}SpectralStream{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">✦</div>
+        <div class="sidebar-brand">
+          SpectralStream
+          <small>v{{ version }}</small>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="sidebar-nav-group">
+          <div class="sidebar-nav-group-title">Core</div>
+          <a href="/dashboard" class="sidebar-nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+            <span class="nav-icon">◉</span>
+            <span>Dashboard</span>
+          </a>
+          <a href="/chat" class="sidebar-nav-item {% if active_page == 'chat' %}active{% endif %}">
+            <span class="nav-icon">💬</span>
+            <span>Chat</span>
+          </a>
+          <a href="/models" class="sidebar-nav-item {% if active_page == 'models' %}active{% endif %}">
+            <span class="nav-icon">▦</span>
+            <span>Models</span>
+          </a>
+          <a href="/compress" class="sidebar-nav-item {% if active_page == 'compress' %}active{% endif %}">
+            <span class="nav-icon">⊞</span>
+            <span>Compress</span>
+          </a>
+        </div>
+        <div class="sidebar-nav-group">
+          <div class="sidebar-nav-group-title">Analysis</div>
+          <a href="/certificate" class="sidebar-nav-item {% if active_page == 'certificate' %}active{% endif %}">
+            <span class="nav-icon">◎</span>
+            <span>Certificates</span>
+          </a>
+        </div>
+        <div class="sidebar-nav-group">
+          <div class="sidebar-nav-group-title">Developer</div>
+          <a href="/docs" class="sidebar-nav-item" target="_blank">
+            <span class="nav-icon">◈</span>
+            <span>API Docs</span>
+          </a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="theme-toggle-wrapper">
+          <label class="toggle" id="themeToggle">
+            <input type="checkbox" aria-label="Toggle theme" />
+            <span class="toggle-track"></span>
+            <span class="text-xs text-muted" id="themeLabel">Dark</span>
+          </label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Sidebar Toggle (Mobile) -->
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Header -->
+      <header class="main-header">
+        <div class="main-header-left">
+          <div class="header-title">
+            {% block header_title %}Dashboard{% endblock %}
+            <small class="subtitle">SpectralStream Inference Engine</small>
+          </div>
+        </div>
+        <div class="main-header-right">
+          <div class="status-indicator">
+            <span class="status-dot healthy" id="statusDot"></span>
+            <span id="statusText">Online</span>
+          </div>
+          <div class="header-meta">
+            {% if models is defined %}
+            <div class="header-meta-item">Models: <strong>{{ models|length if models is mapping else models|length }}</strong></div>
+            {% endif %}
+          </div>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <main class="page-content page-enter">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/static/js/main.js"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

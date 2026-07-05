@@ -1,0 +1,6 @@
+from __future__ import annotations
+
+# Auto-split: original functional_weight_space.py split into functional_weight_space/
+from .mlpfit import *
+
+__all__ = ['_mlp_compress', '_make_fourier_class', '_hierarchical_decompress', '_make_poly_class', '_sparse_dct_basis', '_mlp_fit', '_poly_compress', '_fourier_decompress', '_rbf_eval', '_hierarchical_eval', '_serialize_siren', '_hierarchical_compress', '_hash_encode', '_symbolic_fit', '_rbf_fit', '_hash_decompress', '_sparse_decompress', '_make_rbf_class', '_make_spline_class', '_fourier_eval', '_make_hierarchical_class', '_should_fallback', '_symbolic_compress', '_make_symbolic_class', '_poly_decompress', '_fourier_compress', '_mlp_eval', '_symbolic_basis', '_deserialize_siren', '_siren_compress', '_serialize', '_poly_features', '_siren_fit', '_sparse_compress', '_make_sparse_class', '_make_siren_class', '_spline_eval', '_fourier_fit', '_adaptive_select_best', '_deserialize', '_siren_decompress', '_hash_fit', '_symbolic_eval', '_spline_compress', '_sparse_omp_fit', '_hierarchical_fit', '_symbolic_decompress', '_spline_fit', '_sparse_fwht_basis', '_make_hash_class', '_poly_eval', '_siren_eval', '_spline_decompress', '_mlp_decompress', '_hash_compress', '_make_mlp_class', '_poly_fit', '_rbf_decompress', '_rbf_compress']

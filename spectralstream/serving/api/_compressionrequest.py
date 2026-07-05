@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+import re
+import threading
+import time
+import uuid
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from threading import Lock
+from typing import Any, AsyncGenerator, Dict, Iterator, List, Optional, Tuple
+from pathlib import Path
+
+import numpy as np
+from fastapi import FastAPI, Form, HTTPException, Request, Depends, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+
+class CompressionRequest(BaseModel):
+    model_path: str
+    target_ratio: float = 5000.0
+    max_error: float = 0.0002
+    output_path: Optional[str] = None

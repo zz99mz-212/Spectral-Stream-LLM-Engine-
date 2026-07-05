@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% set active_page = "dashboard" %}
+
+{% block title %}Dashboard — SpectralStream{% endblock %}
+{% block header_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Real-time inference engine metrics and system health</p>
+  </div>
+  <div class="flex gap-3">
+    <button class="btn btn-ghost btn-sm" onclick="refreshStats()">
+      <span class="icon">↻</span> Refresh
+    </button>
+  </div>
+</div>
+
+<div class="stats-grid" id="statsGrid">
+  <div class="glass-card stat-card">
+    <div class="stat-label">Active Sessions</div>
+    <div class="stat-value" id="statSessions">{{ stats.get('active_sessions', 0) }}</div>
+    <span class="stat-change positive">▲ live</span>
+    <div class="stat-icon">◉</div>
+  </div>
+  <div class="glass-card stat-card">
+    <div class="stat-label">Total Tokens</div>
+    <div class="stat-value" id="statTokens">{{ '{:,}'.format(stats.get('total_tokens_generated', 0)) }}</div>
+    <span class="stat-change positive">▲ lifetime</span>
+    <div class="stat-icon">◈</div>
+  </div>
+  <div class="glass-card stat-card">
+    <div class="stat-label">Throughput</div>
+    <div class="stat-value" id="statTps">{{ '%.1f'|format(stats.get('tokens_per_second', 0)) }} <span class="unit">tok/s</span></div>
+    <span class="stat-change positive" id="tpsChange">▲ active</span>
+    <div class="stat-icon">⚡</div>
+  </div>
+  <div class="glass-card stat-card">
+    <div class="stat-label">Total Sessions</div>
+    <div class="stat-value" id="statSessionsTotal">{{ '{:,}'.format(stats.get('total_sessions_created', 0)) }}</div>
+    <span class="stat-change positive">▲ all time</span>
+    <div class="stat-icon">◉</div>
+  </div>
+  <div class="glass-card stat-card">
+    <div class="stat-label">Uptime</div>
+    <div class="stat-value" id="statUptime">{{ '%.0f'|format(stats.get('uptime_seconds', 0) / 3600) }} <span class="unit">hours</span></div>
+    <div class="stat-icon">◈</div>
+  </div>
+  <div class="glass-card stat-card">
+    <div class="stat-label">Models Loaded</div>
+    <div class="stat-value" id="statModels">{{ models|length if models else 0 }}</div>
+    <div class="stat-icon">▦</div>
+  </div>
+  <div class="glass-card stat-card">
+    <div class="stat-label">KV Cache Usage</div>
+    <div class="stat-value" id="statKvCache">—</div>
+    <div class="stat-icon">▤</div>
+  </div>
+  <div class="glass-card stat-card">
+    <div class="stat-label">Cache Hit Rate</div>
+    <div class="stat-value" id="statCacheHit">—</div>
+    <div class="stat-icon">◎</div>
+  </div>
+</div>
+
+<div class="grid-2 mb-8">
+  <div class="glass-card">
+    <div class="glass-card-header">
+      <h4>Token Generation</h4>
+      <span class="badge badge-primary">Live</span>
+    </div>
+    <div class="glass-card-body">
+      <div class="sparkline-container" id="sparklineTokens">
+        <div class="flex items-center justify-center" style="height:160px;">
+          <span class="text-muted text-sm">Waiting for data...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="glass-card">
+    <div class="glass-card-header">
+      <h4>System Health</h4>
+      <span class="badge badge-success">All Good</span>
+    </div>
+    <div class="glass-card-body">
+      <div class="flex flex-col gap-4">
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm text-muted">Engine Status</span>
+            <span class="text-sm text-success" id="statusText">● Operational</span>
+          </div>
+          <div class="progress-bar"><div class="progress-bar-fill" style="width:100%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm text-muted">Memory Usage</span>
+            <span class="text-sm" id="memUsage">0 MB</span>
+          </div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="memBar" style="width:10%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm text-muted">KV Cache</span>
+            <span class="text-sm" id="cacheUsage">0 MB</span>
+          </div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="cacheBar" style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm text-muted">API Requests</span>
+            <span class="text-sm" id="apiRequests">0</span>
+          </div>
+          <div class="progress-bar"><div class="progress-bar-fill" style="width:15%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="glass-card">
+  <div class="glass-card-header">
+    <h4>Loaded Models</h4>
+    <a href="/models" class="btn btn-ghost btn-sm">Manage →</a>
+  </div>
+  <div class="glass-card-body" style="padding:0;">
+    <div class="table-container" style="border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Loaded</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="modelsTableBody">
+          {% if models %}
+            {% for name, info in models.items() %}
+            <tr>
+              <td><span class="font-mono text-sm">{{ name }}</span></td>
+              <td>{{ '%.2f'|format(info.get('size_gb', 0)) }} GB</td>
+              <td class="text-xs">{{ info.get('loaded_at', 0)|timestamp_format if timestamp_format is defined else 'N/A' }}</td>
+              <td><span class="badge badge-success">Active</span></td>
+            </tr>
+            {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="4" class="text-center text-muted" style="padding:var(--space-8);">
+              <span class="text-sm">No models loaded. <a href="/models">Load a model →</a></span>
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let tokenHistory = [];
+
+async function refreshStats() {
+  try {
+    const res = await fetch('/v1/health');
+    const data = await res.json();
+    const s = data.batcher || {};
+
+    document.getElementById('statSessions').textContent = s.active_sessions ?? 0;
+    document.getElementById('statTokens').textContent = (s.total_tokens_generated ?? 0).toLocaleString();
+    document.getElementById('statSessionsTotal').textContent = (s.total_sessions_created ?? 0).toLocaleString();
+
+    const tps = s.tokens_per_second ?? 0;
+    document.getElementById('statTps').innerHTML = tps.toFixed(1) + ' <span class="unit">tok/s</span>';
+    document.getElementById('tpsChange').textContent = tps > 0 ? '▲ ' + tps.toFixed(1) + ' tok/s' : '— idle';
+
+    const uptimeS = s.uptime_seconds ?? 0;
+    const uptimeH = uptimeS / 3600;
+    document.getElementById('statUptime').innerHTML = uptimeH.toFixed(1) + ' <span class="unit">hours</span>';
+
+    const st = document.getElementById('statusText');
+    st.textContent = data.status === 'healthy' ? '● Operational' : '● Degraded';
+    st.className = data.status === 'healthy' ? 'text-sm text-success' : 'text-sm text-warning';
+
+    tokenHistory.push(s.total_tokens_generated ?? 0);
+    if (tokenHistory.length > 30) tokenHistory.shift();
+    renderSparkline();
+
+    if (performance && performance.memory) {
+      const memMB = Math.round(performance.memory.usedJSHeapSize / 1048576);
+      const memTotal = Math.round(performance.memory.jsHeapSizeLimit / 1048576);
+      document.getElementById('memUsage').textContent = memMB + ' MB';
+      document.getElementById('memBar').style.width = Math.min(100, (memMB / memTotal * 100)) + '%';
+    }
+
+    document.getElementById('statKvCache').textContent = s.kv_cache_mb ? s.kv_cache_mb + ' MB' : '—';
+    document.getElementById('statCacheHit').textContent = s.cache_hit_rate ? (s.cache_hit_rate * 100).toFixed(1) + '%' : '—';
+    document.getElementById('cacheUsage').textContent = s.kv_cache_mb ? s.kv_cache_mb + ' MB' : '0 MB';
+    document.getElementById('cacheBar').style.width = s.kv_cache_pct ? Math.min(s.kv_cache_pct, 100) + '%' : '0%';
+    document.getElementById('apiRequests').textContent = data.api_keys_configured || 0;
+
+  } catch (e) {
+    console.warn('Stats refresh failed:', e);
+  }
+}
+
+function renderSparkline() {
+  const container = document.getElementById('sparklineTokens');
+  if (tokenHistory.length < 2) return;
+
+  const max = Math.max(...tokenHistory, 1);
+  const min = Math.min(...tokenHistory, 0);
+  const range = max - min || 1;
+  const w = container.clientWidth || 400;
+  const h = 160;
+  const pad = 10;
+  const cw = w - pad * 2;
+  const ch = h - pad * 2;
+
+  let bars = '';
+  const barW = Math.max(4, Math.floor(cw / tokenHistory.length) - 1);
+  tokenHistory.forEach((val, i) => {
+    const pct = ((val - min) / range);
+    const bh = Math.max(4, pct * ch);
+    const x = pad + i * (barW + 1);
+    const y = pad + ch - bh;
+    bars += `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="2" fill="url(#sparkGrad)" opacity="${0.4 + 0.6 * pct}"/>`;
+  });
+
+  container.innerHTML = `<svg width="${w}" height="${h}" style="display:block;">
+    <defs>
+      <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#6C5CE7"/>
+        <stop offset="100%" stop-color="#00CEC9"/>
+      </linearGradient>
+    </defs>
+    ${bars}
+    <text x="${pad}" y="${pad + 12}" fill="#8888FF" font-size="11" font-family="'JetBrains Mono',monospace">${max.toLocaleString()}</text>
+    <text x="${pad}" y="${pad + ch}" fill="#666680" font-size="11" font-family="'JetBrains Mono',monospace">${min.toLocaleString()}</text>
+  </svg>`;
+}
+
+setInterval(refreshStats, 3000);
+refreshStats();
+</script>
+{% endblock %}

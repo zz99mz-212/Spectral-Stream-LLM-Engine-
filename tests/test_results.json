@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-06-30T02:06:01.905125",
+  "python_version": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+  "test_file": "/home/mike/Documents/Github/SpectralStream/tests/test_compression_engine.py",
+  "exit_code": 0,
+  "elapsed_seconds": 3.6,
+  "tests": {
+    "passed": 164,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 3,
+    "xfail": 1,
+    "total": 168
+  },
+  "all_passed": true
+}

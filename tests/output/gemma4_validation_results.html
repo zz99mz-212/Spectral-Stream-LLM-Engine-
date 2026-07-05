@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gemma 4 E2B Compression Validation Report</title>
+<style>
+body { font-family: -apple-system,BlinkMacSystemFont,sans-serif; margin: 20px; background: #f5f5f5; }
+h1,h2,h3 { color: #333; }
+.summary { display: flex; gap: 20px; margin: 20px 0; }
+.card { background: white; border-radius: 8px; padding: 20px; flex:1; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.card h3 { margin:0 0 10px 0; }
+.card .value { font-size: 24px; font-weight: bold;}
+table { border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+th, td { border: 1px solid #ddd; padding: 4px 8px; text-align: center; }
+th { background: #4a90d9; color: white; position: sticky; top: 0; }
+tr:nth-child(even) { background: #f9f9f9; }
+.green { background: #d4edda; }
+.yellow { background: #fff3cd; }
+.red { background: #f8d7da; }
+.fail { background: #e8e8e8; color: #999; }
+.na { background: #f0f0f0; color: #ccc; }
+.method-cell { text-align: left; font-family: monospace; white-space: nowrap; }
+small { color: #666; }
+.section { background: white; border-radius: 8px; padding: 20px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Gemma 4 E2B — Compression Validation Report</h1>
+<p>Generated: 2026-07-01T15:17:39.055330</p>
+
+<div class="summary">
+<div class="card"><h3>Tests</h3><div class="value">110</div><span>110 passed, 0 failed</span></div>
+<div class="card"><h3>Avg Ratio</h3><div class="value">26001.3x</div></div>
+<div class="card"><h3>Avg Error</h3><div class="value">74.95%</div></div>
+<div class="card"><h3>Avg SNR</h3><div class="value">57.0 dB</div></div>
+</div>
+
+<div class="section">
+<h2>Method Ranking (Top 20 by Harmonic Mean)</h2>
+<table><tr><th>Rank</th><th>Method</th><th>Avg Harmonic Score</th></tr>
+<tr><td>1</td><td>additive_codebook_quant</td><td>1.98</td></tr>
+<tr><td>2</td><td>adaptive_scalar_quant</td><td>1.61</td></tr>
+<tr><td>3</td><td>adaptive_sparsity</td><td>0.34</td></tr>
+<tr><td>4</td><td>adaptive_group_quant</td><td>0.04</td></tr>
+<tr><td>5</td><td>adaptive_arithmetic</td><td>0.02</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Best Method Per Tensor Type</h2>
+<table><tr><th>Type</th><th>Lowest Error</th><th>Highest Ratio</th><th>Best Harmonic</th></tr>
+<tr><td>attention_k</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>attention_out</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>attention_q</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>attention_v</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>embedding</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>ffn_down</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>ffn_gate</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>ffn_up</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+<tr><td>per_layer_proj</td><td>additive_codebook_quant (0.000%)</td><td>adaptive_arithmetic (60000.0x)</td><td>additive_codebook_quant</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Error-Ratio Matrix</h2>
+<p>Color: <span class="green">&nbsp;green&nbsp;</span> error &lt; 0.1%, <span class="yellow">&nbsp;yellow&nbsp;</span> &lt; 1%, <span class="red">&nbsp;red&nbsp;</span> &gt; 1%</p>
+<table>
+<tr><th>Method</th><th title="attention_q">aud_attn_q_0</th><th title="ffn_gate">aud_ffn_0</th><th title="embedding">embed_audio</th><th title="embedding">embed_tokens</th><th title="embedding">embed_vision</th><th title="attention_k">lm_attn_k_0</th><th title="attention_out">lm_attn_o_0</th><th title="attention_out">lm_attn_o_4_full</th><th title="attention_q">lm_attn_q_0</th><th title="attention_q">lm_attn_q_4_full</th><th title="attention_v">lm_attn_v_0</th><th title="ffn_down">lm_ffn_down_0</th><th title="ffn_down">lm_ffn_down_15_wide</th><th title="ffn_gate">lm_ffn_gate_0</th><th title="ffn_gate">lm_ffn_gate_15_wide</th><th title="ffn_up">lm_ffn_up_0</th><th title="ffn_up">lm_ffn_up_15_wide</th><th title="per_layer_proj">lm_per_layer_0</th><th title="per_layer_proj">lm_per_layer_global</th><th title="attention_out">vis_attn_o_0</th><th title="attention_q">vis_attn_q_0</th><th title="ffn_gate">vis_ffn_gate_0</th></tr>
+<tr><td class='method-cell'>adaptive_arithmetic</td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.3dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td><td class='red' title='ratio=60000.0x, SNR=-0.0dB'>100.00%<br><small>60000.0x</small></td></tr>
+<tr><td class='method-cell'>adaptive_group_quant</td><td class='red' title='ratio=4.0x, SNR=0.9dB'>90.19%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=1.2dB'>83.43%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-2.9dB'>139.61%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-11.8dB'>391.14%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-9.0dB'>282.96%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-5.2dB'>182.90%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-7.7dB'>243.75%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-7.2dB'>228.10%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-7.0dB'>223.18%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-9.6dB'>301.05%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-5.0dB'>178.37%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-6.8dB'>217.72%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-3.2dB'>144.34%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-3.6dB'>151.05%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-5.1dB'>179.93%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-4.6dB'>170.33%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-4.0dB'>158.48%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-8.1dB'>253.03%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-8.4dB'>264.11%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-10.1dB'>318.98%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-12.1dB'>405.01%<br><small>4.0x</small></td><td class='red' title='ratio=4.0x, SNR=-6.7dB'>216.53%<br><small>4.0x</small></td></tr>
+<tr><td class='method-cell'>adaptive_scalar_quant</td><td class='red' title='ratio=30000.0x, SNR=15.6dB'>16.51%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=17.3dB'>13.15%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.8dB'>18.09%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=13.3dB'>21.59%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.4dB'>19.01%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.8dB'>18.20%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.6dB'>18.58%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.7dB'>18.37%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.3dB'>19.33%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.2dB'>19.57%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.8dB'>18.25%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.7dB'>18.42%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.9dB'>18.06%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.8dB'>18.11%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.6dB'>18.61%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.7dB'>18.37%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.7dB'>18.43%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.4dB'>19.14%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=13.0dB'>22.45%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=12.2dB'>24.42%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=13.0dB'>22.45%<br><small>30000.0x</small></td><td class='red' title='ratio=30000.0x, SNR=14.8dB'>18.16%<br><small>30000.0x</small></td></tr>
+<tr><td class='method-cell'>adaptive_sparsity</td><td class='red' title='ratio=2.4x, SNR=6.0dB'>49.83%<br><small>2.4x</small></td><td class='red' title='ratio=2.7x, SNR=5.2dB'>53.09%<br><small>2.7x</small></td><td class='red' title='ratio=2.6x, SNR=8.3dB'>38.43%<br><small>2.6x</small></td><td class='red' title='ratio=2.2x, SNR=10.6dB'>29.49%<br><small>2.2x</small></td><td class='red' title='ratio=2.3x, SNR=9.6dB'>33.24%<br><small>2.3x</small></td><td class='red' title='ratio=2.5x, SNR=7.8dB'>40.94%<br><small>2.5x</small></td><td class='red' title='ratio=2.3x, SNR=8.8dB'>36.39%<br><small>2.3x</small></td><td class='red' title='ratio=2.3x, SNR=8.7dB'>36.75%<br><small>2.3x</small></td><td class='red' title='ratio=2.3x, SNR=8.8dB'>36.12%<br><small>2.3x</small></td><td class='red' title='ratio=2.1x, SNR=10.6dB'>29.64%<br><small>2.1x</small></td><td class='red' title='ratio=2.6x, SNR=7.7dB'>41.02%<br><small>2.6x</small></td><td class='red' title='ratio=2.4x, SNR=8.7dB'>36.56%<br><small>2.4x</small></td><td class='red' title='ratio=2.6x, SNR=8.2dB'>38.70%<br><small>2.6x</small></td><td class='red' title='ratio=2.5x, SNR=8.1dB'>39.14%<br><small>2.5x</small></td><td class='red' title='ratio=2.3x, SNR=8.7dB'>36.58%<br><small>2.3x</small></td><td class='red' title='ratio=2.6x, SNR=7.9dB'>40.30%<br><small>2.6x</small></td><td class='red' title='ratio=2.3x, SNR=9.0dB'>35.46%<br><small>2.3x</small></td><td class='red' title='ratio=2.1x, SNR=10.6dB'>29.63%<br><small>2.1x</small></td><td class='red' title='ratio=2.3x, SNR=9.5dB'>33.59%<br><small>2.3x</small></td><td class='red' title='ratio=2.0x, SNR=11.2dB'>27.49%<br><small>2.0x</small></td><td class='red' title='ratio=2.1x, SNR=11.5dB'>26.49%<br><small>2.1x</small></td><td class='red' title='ratio=2.4x, SNR=9.2dB'>34.66%<br><small>2.4x</small></td></tr>
+<tr><td class='method-cell'>additive_codebook_quant</td><td class='green' title='ratio=40000.0x, SNR=268.9dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=269.0dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=268.0dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=268.1dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=271.1dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=267.7dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=266.7dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=263.6dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=267.4dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=266.5dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=268.3dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=262.4dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=258.7dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=268.0dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=269.1dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=267.7dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=268.4dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=276.3dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=268.0dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=269.6dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=271.2dB'>0.00%<br><small>40000.0x</small></td><td class='green' title='ratio=40000.0x, SNR=271.1dB'>0.00%<br><small>40000.0x</small></td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Failure Summary</h2>
+<table><tr><th>Method</th><th>Tensor</th><th>Error</th></tr>
+
+</table>
+</div>
+
+</body>
+</html>

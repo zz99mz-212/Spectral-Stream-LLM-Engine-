@@ -1,0 +1,55 @@
+"""Model loading and weight management."""
+
+from spectralstream.model.model_targets import (
+    TARGET_MODEL_REGISTRY,
+    list_target_models,
+    get_target_config,
+    find_model_fuzzy,
+    HardwareProfile,
+    ModelFitResult,
+    compute_model_fit,
+    download_model,
+    probe_ram_gb,
+    probe_ssd_free_gb,
+    probe_cpu_cores,
+    probe_gpu_vram_gb,
+)
+from spectralstream.model.gguf_model import GGUFModel, DummyModel, load_model
+from spectralstream.model.gemma4_config import (
+    GEMMA4_E2B_CONFIG,
+    GEMMA4_E4B_CONFIG,
+    detect_gemma4_variant,
+    get_gemma4_config,
+    extract_gguf_config,
+    gemma4_rmsnorm,
+    gemma4_attention_softcap,
+    gemma4_logit_softcap,
+    gemma4_embed_scale,
+)
+
+__all__ = [
+    "TARGET_MODEL_REGISTRY",
+    "list_target_models",
+    "get_target_config",
+    "find_model_fuzzy",
+    "HardwareProfile",
+    "ModelFitResult",
+    "compute_model_fit",
+    "download_model",
+    "probe_ram_gb",
+    "probe_ssd_free_gb",
+    "probe_cpu_cores",
+    "probe_gpu_vram_gb",
+    "GGUFModel",
+    "DummyModel",
+    "load_model",
+    "GEMMA4_E2B_CONFIG",
+    "GEMMA4_E4B_CONFIG",
+    "detect_gemma4_variant",
+    "get_gemma4_config",
+    "extract_gguf_config",
+    "gemma4_rmsnorm",
+    "gemma4_attention_softcap",
+    "gemma4_logit_softcap",
+    "gemma4_embed_scale",
+]

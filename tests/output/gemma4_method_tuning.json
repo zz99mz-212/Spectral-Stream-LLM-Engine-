@@ -1,0 +1,327 @@
+{
+  "adaptive_arithmetic": {
+    "embedding": {
+      "tensor": "embed_tokens",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -0.0008302216716718214,
+      "recommended_params": {}
+    },
+    "attention_q": {
+      "tensor": "lm_attn_q_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -0.00011545459959506758,
+      "recommended_params": {}
+    },
+    "attention_k": {
+      "tensor": "lm_attn_k_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -0.00016647150615181007,
+      "recommended_params": {}
+    },
+    "attention_v": {
+      "tensor": "lm_attn_v_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -0.00012492216032892632,
+      "recommended_params": {}
+    },
+    "attention_out": {
+      "tensor": "lm_attn_o_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -7.93904026045308e-05,
+      "recommended_params": {}
+    },
+    "ffn_gate": {
+      "tensor": "lm_ffn_gate_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -0.00035128350602325046,
+      "recommended_params": {}
+    },
+    "ffn_up": {
+      "tensor": "lm_ffn_up_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -8.954319646032454e-07,
+      "recommended_params": {}
+    },
+    "ffn_down": {
+      "tensor": "lm_ffn_down_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -0.00016824772083964639,
+      "recommended_params": {}
+    },
+    "per_layer_proj": {
+      "tensor": "lm_per_layer_0",
+      "best_error": 1.0,
+      "best_ratio": 60000.0,
+      "snr_db": -0.00013401276359636475,
+      "recommended_params": {}
+    }
+  },
+  "adaptive_group_quant": {
+    "embedding": {
+      "tensor": "embed_audio",
+      "best_error": 1.396090944445071,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": -2.898433698542214,
+      "recommended_params": {}
+    },
+    "attention_q": {
+      "tensor": "aud_attn_q_0",
+      "best_error": 0.9019113163917309,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": 0.8510975227272932,
+      "recommended_params": {}
+    },
+    "attention_k": {
+      "tensor": "lm_attn_k_0",
+      "best_error": 1.8289873317389953,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": -5.244380419471852,
+      "recommended_params": {}
+    },
+    "attention_v": {
+      "tensor": "lm_attn_v_0",
+      "best_error": 1.783701769701192,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": -5.026569786188986,
+      "recommended_params": {}
+    },
+    "attention_out": {
+      "tensor": "lm_attn_o_4_full",
+      "best_error": 2.281012617423283,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": -7.162553920665208,
+      "recommended_params": {}
+    },
+    "ffn_gate": {
+      "tensor": "aud_ffn_0",
+      "best_error": 0.834288383684771,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": 1.2374310470008325,
+      "recommended_params": {}
+    },
+    "ffn_up": {
+      "tensor": "lm_ffn_up_15_wide",
+      "best_error": 1.5847749907723434,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": -3.99935865151917,
+      "recommended_params": {}
+    },
+    "ffn_down": {
+      "tensor": "lm_ffn_down_15_wide",
+      "best_error": 1.4434040260239325,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": -3.1878915033780872,
+      "recommended_params": {}
+    },
+    "per_layer_proj": {
+      "tensor": "lm_per_layer_0",
+      "best_error": 2.530311560407911,
+      "best_ratio": 3.9946737683089215,
+      "snr_db": -8.063614006518792,
+      "recommended_params": {}
+    }
+  },
+  "adaptive_scalar_quant": {
+    "embedding": {
+      "tensor": "embed_audio",
+      "best_error": 0.18093253519177252,
+      "best_ratio": 30000.0,
+      "snr_db": 14.8495071339755,
+      "recommended_params": {}
+    },
+    "attention_q": {
+      "tensor": "aud_attn_q_0",
+      "best_error": 0.16513059110774891,
+      "best_ratio": 30000.0,
+      "snr_db": 15.597823534453973,
+      "recommended_params": {}
+    },
+    "attention_k": {
+      "tensor": "lm_attn_k_0",
+      "best_error": 0.18204513709661346,
+      "best_ratio": 30000.0,
+      "snr_db": 14.796251882903896,
+      "recommended_params": {}
+    },
+    "attention_v": {
+      "tensor": "lm_attn_v_0",
+      "best_error": 0.18253356049296307,
+      "best_ratio": 30000.0,
+      "snr_db": 14.773020573558629,
+      "recommended_params": {}
+    },
+    "attention_out": {
+      "tensor": "lm_attn_o_4_full",
+      "best_error": 0.18371296477300927,
+      "best_ratio": 30000.0,
+      "snr_db": 14.717203712980211,
+      "recommended_params": {}
+    },
+    "ffn_gate": {
+      "tensor": "aud_ffn_0",
+      "best_error": 0.1314783424503276,
+      "best_ratio": 30000.0,
+      "snr_db": 17.286670574758787,
+      "recommended_params": {}
+    },
+    "ffn_up": {
+      "tensor": "lm_ffn_up_0",
+      "best_error": 0.18372034144656138,
+      "best_ratio": 30000.0,
+      "snr_db": 14.716854226800361,
+      "recommended_params": {}
+    },
+    "ffn_down": {
+      "tensor": "lm_ffn_down_15_wide",
+      "best_error": 0.18055319962355018,
+      "best_ratio": 30000.0,
+      "snr_db": 14.867762961854378,
+      "recommended_params": {}
+    },
+    "per_layer_proj": {
+      "tensor": "lm_per_layer_0",
+      "best_error": 0.19137049823671862,
+      "best_ratio": 30000.0,
+      "snr_db": 14.362366235926237,
+      "recommended_params": {}
+    }
+  },
+  "adaptive_sparsity": {
+    "embedding": {
+      "tensor": "embed_tokens",
+      "best_error": 0.2948908680155553,
+      "best_ratio": 2.1552498293760554,
+      "snr_db": 10.605943301986184,
+      "recommended_params": {}
+    },
+    "attention_q": {
+      "tensor": "vis_attn_q_0",
+      "best_error": 0.2648714819975801,
+      "best_ratio": 2.0852882911062456,
+      "snr_db": 11.539219404091043,
+      "recommended_params": {}
+    },
+    "attention_k": {
+      "tensor": "lm_attn_k_0",
+      "best_error": 0.40938046013108714,
+      "best_ratio": 2.5072082236429734,
+      "snr_db": 7.757291332543687,
+      "recommended_params": {}
+    },
+    "attention_v": {
+      "tensor": "lm_attn_v_0",
+      "best_error": 0.41020834442592713,
+      "best_ratio": 2.622263012980202,
+      "snr_db": 7.73978526771073,
+      "recommended_params": {}
+    },
+    "attention_out": {
+      "tensor": "vis_attn_o_0",
+      "best_error": 0.2748960718223842,
+      "best_ratio": 2.036867298095529,
+      "snr_db": 11.215586649081612,
+      "recommended_params": {}
+    },
+    "ffn_gate": {
+      "tensor": "vis_ffn_gate_0",
+      "best_error": 0.34657517397043375,
+      "best_ratio": 2.376896565384463,
+      "snr_db": 9.20363158511104,
+      "recommended_params": {}
+    },
+    "ffn_up": {
+      "tensor": "lm_ffn_up_15_wide",
+      "best_error": 0.35460599168723056,
+      "best_ratio": 2.306361714395541,
+      "snr_db": 9.005072138925922,
+      "recommended_params": {}
+    },
+    "ffn_down": {
+      "tensor": "lm_ffn_down_0",
+      "best_error": 0.36555833582920955,
+      "best_ratio": 2.438528754318228,
+      "snr_db": 8.740697920812497,
+      "recommended_params": {}
+    },
+    "per_layer_proj": {
+      "tensor": "lm_per_layer_0",
+      "best_error": 0.2962823550073806,
+      "best_ratio": 2.1065196784046623,
+      "snr_db": 10.565750227369474,
+      "recommended_params": {}
+    }
+  },
+  "additive_codebook_quant": {
+    "embedding": {
+      "tensor": "embed_tokens",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 268.08680960744147,
+      "recommended_params": {}
+    },
+    "attention_q": {
+      "tensor": "lm_attn_q_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 267.400744741988,
+      "recommended_params": {}
+    },
+    "attention_k": {
+      "tensor": "lm_attn_k_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 267.73325278105455,
+      "recommended_params": {}
+    },
+    "attention_v": {
+      "tensor": "lm_attn_v_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 268.25780606791363,
+      "recommended_params": {}
+    },
+    "attention_out": {
+      "tensor": "lm_attn_o_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 266.6989360463344,
+      "recommended_params": {}
+    },
+    "ffn_gate": {
+      "tensor": "lm_ffn_gate_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 267.9534651092816,
+      "recommended_params": {}
+    },
+    "ffn_up": {
+      "tensor": "lm_ffn_up_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 267.7453354613981,
+      "recommended_params": {}
+    },
+    "ffn_down": {
+      "tensor": "lm_ffn_down_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 262.38394759692096,
+      "recommended_params": {}
+    },
+    "per_layer_proj": {
+      "tensor": "lm_per_layer_0",
+      "best_error": 0.0,
+      "best_ratio": 40000.0,
+      "snr_db": 276.2685525180972,
+      "recommended_params": {}
+    }
+  }
+}

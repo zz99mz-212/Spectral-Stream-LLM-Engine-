@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:MyApp.ViewModels"
+        x:Class="MyApp.MainWindow"
+        x:Name="MainWindow"
+        Title="My Application"
+        Width="800" Height="600">
+    <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="200,*">
+        <MenuStrip Grid.Row="0" Grid.ColumnSpan="2">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open" Click="OnOpenClick"/>
+                <MenuItem Header="_Save" Click="OnSaveClick"/>
+                <MenuItem Header="_Exit" Click="OnExitClick"/>
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Copy"/>
+                <MenuItem Header="_Paste"/>
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Click="OnAboutClick"/>
+            </MenuItem>
+        </MenuStrip>
+
+        <StackPanel Grid.Row="1" Grid.Column="0" Margin="10" Spacing="8">
+            <TextBlock Text="Navigation" FontSize="18" FontWeight="Bold"/>
+            <ListBox Items="{Binding NavigationItems}"
+                     SelectedItem="{Binding SelectedNavItem}"
+                     x:Name="NavListBox"/>
+            <Button Content="Refresh" Width="100"
+                    Command="{Binding RefreshCommand}"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Grid.Column="1" Margin="10" Spacing="8">
+            <TextBlock Text="{Binding PageTitle}" FontSize="24" FontWeight="Bold"/>
+            <TextBox Text="{Binding Name, Mode=TwoWay}"
+                     Watermark="Enter your name"
+                     x:Name="NameTextBox"/>
+            <TextBox Text="{Binding Description, Mode=TwoWay}"
+                     Watermark="Enter description"
+                     AcceptsReturn="True"
+                     Height="100"/>
+            <Button Content="Save"
+                    Width="120" Height="32"
+                    Command="{Binding SaveCommand}"
+                    Click="OnSaveClick"/>
+            <Button Content="Cancel"
+                    Width="120" Height="32"
+                    Command="{Binding CancelCommand}"/>
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{Binding StatusColor}"/>
+        </StackPanel>
+
+        <StatusBar Grid.Row="2" Grid.ColumnSpan="2">
+            <TextBlock Text="{Binding StatusMessage}" x:Name="StatusText"/>
+        </StatusBar>
+    </Grid>
+</Window>

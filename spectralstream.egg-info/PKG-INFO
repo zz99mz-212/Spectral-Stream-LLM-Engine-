@@ -1,0 +1,28 @@
+Metadata-Version: 2.4
+Name: spectralstream
+Version: 2.0.0
+Summary: Pure-Python LLM inference engine with hyperdimensional computing and spectral compression
+Requires-Python: >=3.10
+Requires-Dist: numpy>=1.24
+Requires-Dist: scipy>=1.10
+Requires-Dist: psutil>=5.9
+Requires-Dist: safetensors>=0.4
+Requires-Dist: zstandard>=0.22
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-timeout>=2.0; extra == "dev"
+Requires-Dist: rich>=13.0; extra == "dev"
+Provides-Extra: web
+Requires-Dist: fastapi>=0.100; extra == "web"
+Requires-Dist: uvicorn>=0.22; extra == "web"
+Requires-Dist: jinja2>=3.1; extra == "web"
+Requires-Dist: python-multipart>=0.0.6; extra == "web"
+Requires-Dist: pydantic>=2.0; extra == "web"
+Provides-Extra: gguf
+Requires-Dist: gguf>=0.6; extra == "gguf"
+Provides-Extra: ml
+Requires-Dist: scikit-learn>=1.3; extra == "ml"
+Requires-Dist: ml-dtypes>=0.3; extra == "ml"
+Requires-Dist: torch>=2.0; extra == "ml"
+Provides-Extra: finetune
+Requires-Dist: datasets>=2.0; extra == "finetune"

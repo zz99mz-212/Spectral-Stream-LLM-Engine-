@@ -1,0 +1,92 @@
+{
+  "tests": [
+    {
+      "name": "Module imports",
+      "status": "PASS",
+      "elapsed": 0.2
+    },
+    {
+      "name": "UnifiedPipeline init",
+      "status": "PASS",
+      "elapsed": 0.0
+    },
+    {
+      "name": "UnifiedPipeline train",
+      "status": "PASS",
+      "elapsed": 0.064
+    },
+    {
+      "name": "UnifiedPipeline generate",
+      "status": "PASS",
+      "elapsed": 0.267
+    },
+    {
+      "name": "UnifiedPipeline generate_batch",
+      "status": "PASS",
+      "elapsed": 0.145
+    },
+    {
+      "name": "UnifiedPipeline get_stats",
+      "status": "PASS",
+      "elapsed": 0.0
+    },
+    {
+      "name": "HighThroughputHDC",
+      "status": "PASS",
+      "elapsed": 0.054
+    },
+    {
+      "name": "HighThroughputPipeline",
+      "status": "PASS",
+      "elapsed": 0.065
+    },
+    {
+      "name": "AgentSwarmEngine init",
+      "status": "PASS",
+      "elapsed": 0.0
+    },
+    {
+      "name": "MathAwarePipeline",
+      "status": "PASS",
+      "elapsed": 0.0
+    },
+    {
+      "name": "HolographicAttention",
+      "status": "PASS",
+      "elapsed": 0.001
+    },
+    {
+      "name": "SymplecticAttention",
+      "status": "PASS",
+      "elapsed": 0.0
+    },
+    {
+      "name": "PICAttentionLayer",
+      "status": "PASS",
+      "elapsed": 0.014
+    },
+    {
+      "name": "CircuitBreaker",
+      "status": "PASS",
+      "elapsed": 0.0
+    },
+    {
+      "name": "TensorTrainCompression",
+      "status": "PASS",
+      "elapsed": 0.071
+    },
+    {
+      "name": "FrontierRunner configs",
+      "status": "PASS",
+      "elapsed": 0.0
+    },
+    {
+      "name": "HardwareProbe",
+      "status": "PASS",
+      "elapsed": 0.001
+    }
+  ],
+  "passed": 17,
+  "failed": 0,
+  "errors": []
+}

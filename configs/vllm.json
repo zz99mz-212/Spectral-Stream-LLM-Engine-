@@ -1,0 +1,14 @@
+{
+  "model": "spectralstream",
+  "tensor_parallel_size": 1,
+  "max_model_len": 4096,
+  "gpu_memory_utilization": 0.0,
+  "host": "0.0.0.0",
+  "port": 8080,
+  "api_key": "not-needed",
+  "served_model_name": "spectralstream",
+  "chat_template": null,
+  "enable_chunked_prefill": false,
+  "max_num_batched_tokens": 4096,
+  "max_num_seqs": 8
+}
