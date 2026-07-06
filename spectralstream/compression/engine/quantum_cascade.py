@@ -28,6 +28,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from spectralstream.compression.honest_metrics import (
+    dual_ratio,
+    end_to_end_error,
+    serialized_nbytes,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -692,9 +698,18 @@ class QuantumSuperpositionEngine:
 
         Returns (compressed_data, metadata, cumulative_ratio, cumulative_error).
         """
+        original_tensor = tensor.astype(np.float64)
         current_tensor = tensor.astype(np.float64)
+        reconstruction = np.zeros_like(original_tensor)
+        # `cumulative_ratio`/`cumulative_error` below are running ESTIMATES
+        # used only to decide early termination between stages. The values
+        # actually reported at the end are recomputed from true serialized
+        # bytes and a true end-to-end reconstruction error (see bottom of
+        # this method) — never a product of per-stage ratios or a sum of
+        # per-stage errors.
         cumulative_ratio = 1.0
         cumulative_error = 0.0
+        cumulative_serialized_bytes = 0
         all_compressed: List[bytes] = []
         all_metadata: List[Dict[str, Any]] = []
         stage_methods: List[str] = []
@@ -741,8 +756,17 @@ class QuantumSuperpositionEngine:
             stage_methods.append(best_result.method_name)
 
             stage_ratio = best_result.ratio
-            cumulative_ratio *= stage_ratio
+            stage_bytes = serialized_nbytes(stage_data) + serialized_nbytes(stage_meta)
+            cumulative_serialized_bytes += stage_bytes
+            # Running estimate for loop control only.
+            cumulative_ratio = original_tensor.nbytes / max(cumulative_serialized_bytes, 1)
             cumulative_error += best_result.error
+
+            if best_result.decompressed is not None:
+                recon_flat = best_result.decompressed.ravel().astype(np.float64)
+                reconstruction = reconstruction.ravel()
+                reconstruction += recon_flat
+                reconstruction = reconstruction.reshape(current_tensor.shape)
 
             if idx < len(plan.stages) - 1 and best_result.decompressed is not None:
                 residual = current_tensor.ravel().astype(np.float64)
@@ -752,18 +776,42 @@ class QuantumSuperpositionEngine:
                 gc.collect()
 
         total_data = b"".join(all_compressed)
+
+        # TRUE end-to-end numbers: actual serialized bytes of the whole
+        # packed payload vs. original bytes, and true reconstruction error
+        # against the ORIGINAL tensor (not a product of per-stage ratios or
+        # a sum of per-stage normalized errors).
+        achieved_ratio = float(original_tensor.nbytes) / float(max(len(total_data), 1))
+        e2e = end_to_end_error(original_tensor, reconstruction)
+        baselines = dual_ratio(int(original_tensor.size), total_data)
+
         metadata: Dict[str, Any] = {
             "cascade": True,
             "quantum_cascade": True,
             "n_stages": len(all_compressed),
             "stages": stage_methods,
             "stage_metadata": all_metadata,
-            "total_ratio": cumulative_ratio,
-            "total_error": cumulative_error,
+            "achieved_ratio": achieved_ratio,
+            "total_ratio": achieved_ratio,
+            "ratio_vs_fp32": baselines["ratio_vs_fp32"],
+            "ratio_vs_bf16": baselines["ratio_vs_bf16"],
+            "achieved_error": e2e.rel_mse,
+            "total_error": e2e.rel_mse,
+            "rel_mse": e2e.rel_mse,
+            "cosine_sim": e2e.cosine_sim,
+            "max_abs_error": e2e.max_abs,
+            "snr_db": e2e.snr_db,
             "original_shape": tensor.shape,
+            "target_ratio": float(plan.overall_target),
         }
 
-        return total_data, metadata, cumulative_ratio, cumulative_error
+        return total_data, metadata, achieved_ratio, float(e2e.rel_mse)
+
+
+class ErrorEstimationFailed(RuntimeError):
+    """Raised when a real error measurement cannot be obtained for a
+    compressed tensor. Callers MUST treat this as a failed method/stage —
+    never substitute a fabricated numeric error (e.g. a hardcoded 0.5)."""
 
 
 def _estimate_error(
@@ -772,9 +820,12 @@ def _estimate_error(
     meta: Dict[str, Any],
     instance: Any,
 ) -> float:
-    """Estimate the relative error of a compressed tensor.
+    """Compute the real relative error of a compressed tensor.
 
-    Tries to use metadata first, falls back to decompress-and-compare.
+    Uses metadata-reported error if present, otherwise decompresses and
+    compares directly against the input tensor. If neither is possible,
+    raises ``ErrorEstimationFailed`` instead of fabricating a number — the
+    caller must mark the corresponding method/stage as failed and log why.
     """
     if isinstance(meta, dict):
         for key in ("relative_error", "error", "mse"):
@@ -782,12 +833,14 @@ def _estimate_error(
             if val is not None and isinstance(val, (int, float)) and 0 <= val <= 1.0:
                 return float(val)
 
-    try:
-        if hasattr(instance, "decompress"):
-            recon = instance.decompress(data, meta)
-        else:
-            return 0.5
+    if not hasattr(instance, "decompress"):
+        raise ErrorEstimationFailed(
+            f"Cannot measure error: method instance {instance!r} has no "
+            f"decompress() and metadata contained no usable error field."
+        )
 
+    try:
+        recon = instance.decompress(data, meta)
         if recon.shape != tensor.shape:
             recon = recon.reshape(tensor.shape)
 
@@ -796,5 +849,7 @@ def _estimate_error(
         if var > 0:
             return min(mse / var, 1.0)
         return float(min(mse, 1.0))
-    except Exception:
-        return 0.5
+    except Exception as exc:
+        raise ErrorEstimationFailed(
+            f"Decompress-and-compare error measurement failed: {exc}"
+        ) from exc

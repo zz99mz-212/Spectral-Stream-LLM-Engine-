@@ -37,6 +37,12 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Callable, Union
 
 import numpy as np
 
+from spectralstream.compression.honest_metrics import (
+    dual_ratio,
+    end_to_end_error,
+    serialized_nbytes,
+)
+
 logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -1186,6 +1192,13 @@ class CompressionExecutor:
         stages_meta: List[Dict[str, Any]] = []
         cumulative_recon = np.zeros(original.shape, dtype=np.float64)
         residual = original.astype(np.float64)
+        # NOTE: total_ratio/total_error below are running ESTIMATES used only
+        # for the loop's early-termination decisions. The values actually
+        # reported in `metadata` are recomputed at the end from the true
+        # serialized byte count (sum of all stage payloads) and a true
+        # end-to-end reconstruction error, never from a product of per-stage
+        # ratios or a sum of per-stage errors.
+        cumulative_serialized_bytes = 0
         total_ratio = 1.0
         total_error = 0.0
 
@@ -1212,7 +1225,11 @@ class CompressionExecutor:
                     stage_mse / stage_var if stage_var > 1e-30 else float(stage_mse)
                 )
 
-                total_ratio *= stage_ratio
+                stage_bytes = serialized_nbytes(data) + serialized_nbytes(meta)
+                cumulative_serialized_bytes += stage_bytes
+                # Running estimate ONLY, used for early-termination checks
+                # below — never surfaced as the reported ratio/error.
+                total_ratio = orig_size / max(cumulative_serialized_bytes, 1)
                 total_error += stage_error
 
                 stage.actual_ratio = stage_ratio
@@ -1225,6 +1242,7 @@ class CompressionExecutor:
                         "params": meta,
                         "stage_ratio": stage_ratio,
                         "stage_error": stage_error,
+                        "stage_bytes": stage_bytes,
                     }
                 )
 
@@ -1235,7 +1253,14 @@ class CompressionExecutor:
                 del source, recon, recon_f64
                 gc.collect()
 
-            except Exception:
+            except Exception as exc:
+                logger.error(
+                    "compress_with_cascade: stage %d ('%s') failed: %s",
+                    i,
+                    stage.method_name,
+                    exc,
+                    exc_info=True,
+                )
                 continue
 
             if total_ratio >= plan.target_ratio:
@@ -1252,18 +1277,40 @@ class CompressionExecutor:
             buf += sd
         compressed = bytes(buf)
 
+        # TRUE end-to-end numbers: actual serialized byte size of the whole
+        # packed payload vs. original bytes, and true reconstruction error
+        # against the ORIGINAL tensor (not a sum/average of per-stage
+        # normalized errors).
+        achieved_ratio = float(orig_size) / float(max(len(compressed), 1))
+        e2e = end_to_end_error(original, cumulative_recon)
+        n_elements = int(original.size)
+        baselines = dual_ratio(n_elements, compressed)
+
         metadata: Dict[str, Any] = {
             "method": "cascade",
             "n_stages": len(stages_data),
             "stages": stages_meta,
-            "total_ratio": float(total_ratio),
-            "total_error": float(min(total_error, 1.0)),
+            # Achieved/measured values — these are the ONLY numbers that
+            # should be treated as real results.
+            "achieved_ratio": achieved_ratio,
+            "total_ratio": achieved_ratio,
+            "ratio_vs_fp32": baselines["ratio_vs_fp32"],
+            "ratio_vs_bf16": baselines["ratio_vs_bf16"],
+            "achieved_error": e2e.rel_mse,
+            "total_error": e2e.rel_mse,
+            "rel_mse": e2e.rel_mse,
+            "cosine_sim": e2e.cosine_sim,
+            "max_abs_error": e2e.max_abs,
+            "snr_db": e2e.snr_db,
             "original_shape": list(original.shape),
-            "compression_ratio": float(total_ratio),
-            "relative_error": float(min(total_error, 1.0)),
+            "compression_ratio": achieved_ratio,
+            "relative_error": e2e.rel_mse,
             "cascade_source": plan.source,
+            # Planning-time targets — NEVER report these as achieved results.
+            "target_ratio": float(plan.target_ratio),
+            "target_max_error": float(plan.max_error),
         }
-        return compressed, metadata, float(total_ratio), float(min(total_error, 1.0))
+        return compressed, metadata, achieved_ratio, float(e2e.rel_mse)
 
     def _fallback_compress(
         self, tensor: np.ndarray
@@ -1864,6 +1911,9 @@ class UnifiedModelCompressionEngine:
                         method_dist.get(meta.get("method", "unknown"), 0) + 1
                     )
                 except Exception as exc:
+                    logger.error(
+                        "Compression failed for tensor '%s': %s", name, exc, exc_info=True
+                    )
                     failures.append(name)
                 done += 1
                 if progress_callback:
@@ -1930,6 +1980,9 @@ class UnifiedModelCompressionEngine:
                     method_dist.get(meta.get("method", "unknown"), 0) + 1
                 )
             except Exception as exc:
+                logger.error(
+                    "Compression failed for tensor '%s': %s", name, exc, exc_info=True
+                )
                 failures.append(name)
             if progress_callback:
                 progress_callback(i + 1, len(items), name)

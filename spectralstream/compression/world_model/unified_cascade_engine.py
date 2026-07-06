@@ -34,6 +34,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from spectralstream.compression.honest_metrics import (
+    serialized_nbytes,
+    end_to_end_error,
+    dual_ratio,
+)
+
 # Patch np.fft.dct if only available via scipy (for test compatibility)
 if not hasattr(np.fft, "dct"):
     try:
@@ -532,15 +538,26 @@ class UnifiedCascadeEngine:
         reconstruction = np.zeros_like(original)
         stages_meta: List[Dict[str, Any]] = []
         stage_data_list: List[bytes] = []
-        total_ratio = 1.0
-        total_error = 0.0
+        failed_stages: List[Dict[str, Any]] = []
         all_ok = True
+        # Running byte total used ONLY to decide early termination against
+        # target_ratio; the ratio actually REPORTED is always recomputed
+        # from real serialized bytes after packaging (see below).
+        cumulative_serialized_bytes = 0
 
         for i, stage in enumerate(cascade_plan.stages):
             t0 = time.perf_counter()
             inst = self._get_method_instance(engine, stage.method_name)
             if inst is None:
-                logger.debug("Stage %d: method '%s' not found", i, stage.method_name)
+                logger.warning(
+                    "Cascade stage %d: method '%s' not found — marking stage failed",
+                    i,
+                    stage.method_name,
+                )
+                failed_stages.append(
+                    {"index": i, "method": stage.method_name, "reason": "method_not_found"}
+                )
+                all_ok = False
                 continue
 
             try:
@@ -549,7 +566,8 @@ class UnifiedCascadeEngine:
                 if recon.shape != residual.shape:
                     recon = recon.reshape(residual.shape)
 
-                stage_ratio = residual.nbytes / max(len(comp_data), 1)
+                stage_bytes = serialized_nbytes(comp_data) + serialized_nbytes(comp_meta)
+                stage_ratio = residual.nbytes / max(stage_bytes, 1)
                 stage_var = float(np.var(residual))
                 stage_mse = float(np.mean((residual.ravel() - recon.ravel()) ** 2))
                 stage_error = (
@@ -561,8 +579,7 @@ class UnifiedCascadeEngine:
                 stage.actual_error = float(stage_error)
                 stage.time_ms = elapsed
 
-                total_ratio *= stage_ratio
-                total_error += stage_error
+                cumulative_serialized_bytes += stage_bytes
 
                 stage_data_list.append(comp_data)
                 stages_meta.append(
@@ -570,7 +587,7 @@ class UnifiedCascadeEngine:
                         "method": stage.method_name,
                         "category": stage.method_category,
                         "params": comp_meta,
-                        "compressed_size": len(comp_data),
+                        "compressed_size": stage_bytes,
                         "ratio": float(stage_ratio),
                         "error": float(stage_error),
                         "time_ms": elapsed,
@@ -582,40 +599,72 @@ class UnifiedCascadeEngine:
                 residual = original - reconstruction
 
             except Exception as exc:
-                logger.debug("Stage '%s' failed: %s", stage.method_name, exc)
+                logger.warning(
+                    "Cascade stage %d ('%s') failed: %s — marking stage failed",
+                    i,
+                    stage.method_name,
+                    exc,
+                )
+                failed_stages.append(
+                    {"index": i, "method": stage.method_name, "reason": str(exc)}
+                )
                 all_ok = False
                 continue
 
             if stage_error > 10.0 and len(stage_data_list) >= 3:
                 break
 
-            # Early termination: if ratio already meets target, stop
-            if target_ratio > 0 and total_ratio >= target_ratio:
+            # Early termination: if the running byte-accounted ratio already
+            # meets target, stop. This is an ESTIMATE for loop control only;
+            # the reported ratio below is always the byte-exact one.
+            running_ratio = original.nbytes / max(cumulative_serialized_bytes, 1)
+            if target_ratio > 0 and running_ratio >= target_ratio:
                 logger.debug(
                     "Early termination after stage %d: ratio=%.1f >= target=%.0f",
                     i,
-                    total_ratio,
+                    running_ratio,
                     target_ratio,
                 )
                 break
 
         if not stage_data_list:
-            return b"", {"error": "all cascade stages failed", "n_stages": 0}
-
-        cascade_plan.total_ratio = total_ratio
-        cascade_plan.total_error = total_error
+            return b"", {
+                "error": "all cascade stages failed",
+                "n_stages": 0,
+                "failed_stages": failed_stages,
+            }
 
         packed, header_ratio = self._package_stages(
             (stage_data_list, stages_meta), original.nbytes
         )
 
+        # The ONLY ratio ever reported is derived from the actual serialized
+        # payload size (`packed`), never from a product of per-stage ratios.
+        actual_ratio = float(original.nbytes) / float(max(len(packed), 1))
+        cascade_plan.total_ratio = actual_ratio
+
+        end_to_end = end_to_end_error(original, reconstruction)
+        cascade_plan.total_error = end_to_end.rel_mse
+
+        n_original_elements = int(original.size)
+        ratios = dual_ratio(n_original_elements, packed)
+
         metadata: Dict[str, Any] = {
             "method": "unified_cascade",
             "n_stages": len(stages_meta),
             "stages": stages_meta,
-            "total_ratio": float(total_ratio),
-            "total_error": float(min(total_error, 1.0)),
+            "failed_stages": failed_stages,
+            "total_ratio": actual_ratio,
+            "ratio_vs_fp32": ratios["ratio_vs_fp32"],
+            "ratio_vs_bf16": ratios["ratio_vs_bf16"],
+            "total_error": end_to_end.rel_mse,
+            "rel_mse": end_to_end.rel_mse,
+            "cosine_sim": end_to_end.cosine_sim,
+            "max_abs_error": end_to_end.max_abs,
+            "snr_db": end_to_end.snr_db,
             "original_shape": list(original.shape),
+            "original_bytes": int(original.nbytes),
+            "compressed_bytes": int(len(packed)),
             "source": cascade_plan.source,
             "header_ratio": header_ratio,
             "all_stages_ok": all_ok,
@@ -648,7 +697,13 @@ class UnifiedCascadeEngine:
                 if recon.shape != original_shape:
                     recon = recon.reshape(original_shape)
                 reconstruction += recon.astype(np.float32)
-            except Exception:
+            except Exception as exc:
+                logger.error(
+                    "decompress_cascade: stage method '%s' failed to decompress: %s",
+                    method_name,
+                    exc,
+                    exc_info=True,
+                )
                 continue
         return reconstruction
 

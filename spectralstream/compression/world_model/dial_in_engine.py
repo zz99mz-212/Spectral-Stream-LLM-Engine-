@@ -51,6 +51,11 @@ from spectralstream.compression.certificate import (
     CompressionCertificate,
     TensorCertificate,
 )
+from spectralstream.compression.honest_metrics import (
+    dual_ratio,
+    end_to_end_error,
+    serialized_nbytes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -828,8 +833,13 @@ class CompressionDialInEngine:
                 try:
                     recon = np.zeros_like(tensor)
                     residual = tensor.astype(np.float64).copy()
-                    total_ratio = 1.0
-                    total_error = 0.0
+                    # Running estimates for stage bookkeeping only — the
+                    # actually-reported total_ratio/total_error (below, after
+                    # the stage loop) are always recomputed from true
+                    # serialized bytes and true end-to-end reconstruction
+                    # error, never a product of per-stage ratios or a sum of
+                    # per-stage errors.
+                    cumulative_serialized_bytes = 0
                     stage_results: List[Dict[str, Any]] = []
                     all_ok = True
 
@@ -852,6 +862,8 @@ class CompressionDialInEngine:
                                 stage_recon = stage_recon.reshape(residual.shape)
 
                             stage_ratio = residual.nbytes / max(len(data), 1)
+                            stage_bytes = serialized_nbytes(data) + serialized_nbytes(meta)
+                            cumulative_serialized_bytes += stage_bytes
                             recon += stage_recon.astype(np.float64)
                             residual = tensor.astype(np.float64) - recon
 
@@ -863,34 +875,58 @@ class CompressionDialInEngine:
                                 mse / max(var_t, 1e-30) if var_t > 1e-30 else mse
                             )
 
-                            total_ratio *= stage_ratio
-                            total_error += stage_error
-
                             stage_results.append(
                                 {
                                     "method": method_name,
                                     "ratio": float(stage_ratio),
                                     "error": float(stage_error),
                                     "time_ms": float(dt),
+                                    "stage_bytes": stage_bytes,
                                 }
                             )
-                        except Exception:
+                        except Exception as exc:
+                            logger.error(
+                                "discover_cascades: stage '%s' (pattern '%s', tensor '%s') "
+                                "failed: %s",
+                                method_name,
+                                pname,
+                                tname,
+                                exc,
+                                exc_info=True,
+                            )
                             all_ok = False
                             break
 
-                    if all_ok and total_ratio > 1.0:
-                        score = total_ratio / max(total_error, 1e-10)
-                        discoveries.append(
-                            CascadeDiscoveryResult(
-                                tensor_type=ttype,
-                                pattern_name=pname,
-                                stages=stage_results,
-                                total_ratio=float(total_ratio),
-                                total_error=float(min(total_error, 1.0)),
-                                composite_score=float(score),
-                            )
+                    if all_ok and stage_results:
+                        # TRUE end-to-end ratio/error: actual total serialized
+                        # bytes across all stages vs. original bytes, and a
+                        # true rel-MSE from the FULL reconstruction against
+                        # the original tensor (not a sum/average of per-stage
+                        # normalized errors).
+                        achieved_ratio = float(tensor.nbytes) / float(
+                            max(cumulative_serialized_bytes, 1)
                         )
-                except Exception:
+                        e2e = end_to_end_error(tensor, recon)
+                        if achieved_ratio > 1.0:
+                            score = achieved_ratio / max(e2e.rel_mse, 1e-10)
+                            discoveries.append(
+                                CascadeDiscoveryResult(
+                                    tensor_type=ttype,
+                                    pattern_name=pname,
+                                    stages=stage_results,
+                                    total_ratio=float(achieved_ratio),
+                                    total_error=float(min(e2e.rel_mse, 1.0)),
+                                    composite_score=float(score),
+                                )
+                            )
+                except Exception as exc:
+                    logger.error(
+                        "discover_cascades: pattern '%s' on tensor '%s' failed: %s",
+                        pname,
+                        tname,
+                        exc,
+                        exc_info=True,
+                    )
                     continue
 
         discoveries.sort(key=lambda d: -d.composite_score)
@@ -1646,7 +1682,11 @@ def cmd_dial_in_main(args: Any) -> None:
                         tensor_dict[k] = _bf16_to_f32(arr)
                     except Exception as inner:
                         _skipped_bad += 1
-                        logger.debug("Failed to load tensor %s: %s", k, inner)
+                        logger.warning(
+                            "Failed to load tensor %s: %s — skipping (not substituting synthetic data)",
+                            k,
+                            inner,
+                        )
             except Exception as exc2:
                 raise RuntimeError(
                     f"Cannot load model file {args.model}: {exc2}"
