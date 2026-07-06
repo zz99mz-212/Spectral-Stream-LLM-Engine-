@@ -1,7 +1,19 @@
 # SpectralStream — CPU Inference Engine
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-223%20passing-brightgreen)](tests/)
+[![R&D Mode](https://img.shields.io/badge/status-R%26D-red)](.)
+
+> **🔬 ACTIVE R&D — NOT PRODUCTION READY**
+>
+> SpectralStream is currently in intensive Research & Development mode. The unified compression intelligence engine, inference pipeline, KVCache engine, and fine-tuning engine are all under active development. APIs, CLI commands, and internal architectures are changing rapidly as we push compression ratios toward 200:1+ on real LLM weights (Gemma 4 E2B, MiMo V2.5).
+>
+> We are building the world's most advanced model compression intelligence engine — a unified world model that dynamically selects, cascades, and certifies compression methods across the entire model. Key findings so far:
+> - Dense LLM weights have **flat singular value spectra** — decomposition methods (SVD, TT, Tucker) fail
+> - **INT4 block quantization** is the workhorse: 5.3x at <1% error on any weight distribution
+> - **Multiplicative quantization-on-residuals cascading** improves accuracy dramatically but does not multiply ratio
+> - **MiMo V2.5's MoE structure** (256 routed experts) is the path to 200:1+ through expert clustering
+>
+> Expect breaking changes. Join the R&D or wait for the stable release.
 
 Pure-Python LLM inference engine using hyperdimensional computing, spectral/DCT methods, Vlasov mean-field attention, and quantum-inspired tensor networks. All SIMD via NumPy vectorized operations — no C++ extensions.
 
@@ -259,4 +271,8 @@ Archived modules in `_archive/v1/` are re-integrated as compat stubs:
 
 ## License
 
-MIT
+GNU Affero General Public License v3.0
+
+See [LICENSE](LICENSE) for the full text.
+
+Copyright © 2024–2026 Michael B. Zimmerman
