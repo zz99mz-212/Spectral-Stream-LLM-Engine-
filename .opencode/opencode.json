@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "intelligence-graph": {
+      "type": "local",
+      "command": ["/home/mike/.codegraph/versions/v1.2.0/bin/codegraph", "serve", "--mcp"],
+      "environment": {},
+      "enabled": false
+    },
+    "codegraph": {
+      "type": "local",
+      "command": ["/home/mike/.codegraph/versions/v1.2.0/bin/codegraph", "serve", "--mcp"],
+      "enabled": true
+    }
+  },
+  "command": {
+    "search": { "template": "codegraph explore {{query}}", "description": "Search codebase with CodeGraph knowledge graph" },
+    "explore": { "template": "codegraph explore {{query}}", "description": "Explore code: relevant symbols, call paths, blast radius" },
+    "impact": { "template": "codegraph impact {{query}}", "description": "Blast radius / impact analysis of a symbol" },
+    "callers": { "template": "codegraph callers {{query}}", "description": "Find who calls a function" },
+    "callees": { "template": "codegraph callees {{query}}", "description": "Find what a function calls" },
+    "status": { "template": "codegraph status", "description": "Show CodeGraph index statistics" },
+    "index": { "template": "codegraph sync", "description": "Sync CodeGraph index after changes" },
+    "rebuild": { "template": "codegraph index", "description": "Rebuild full CodeGraph index" },
+    "files": { "template": "codegraph files {{query}}", "description": "Show project file structure" }
+  }
+}

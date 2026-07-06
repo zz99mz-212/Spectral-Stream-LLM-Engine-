@@ -1,4 +1,6 @@
 """
+DEPRECATED — Use spectralstream.serving.unified_server instead.
+
 SpectralStream OpenAI-Compatible API Server
 -------------------------------------------
 Full OpenAI API compatibility with:

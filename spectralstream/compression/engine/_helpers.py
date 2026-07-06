@@ -74,6 +74,9 @@ def _safe_bytes(data: Any) -> int:
 def _compute_metrics(orig: np.ndarray, recon: np.ndarray) -> Dict[str, float]:
     """Compute quality metrics using the authoritative QualityAssessor.
 
+    Normalizes both inputs to float32 for metric computation (BF16 tensors
+    stored as uint16 are converted to float32 first).
+
     Returns a dict with ALL metrics (mse, rmse, mae, nmse, snr_db, psnr_db,
     relative_error, cosine_similarity, max_abs_error, ssim, spectral_angle,
     histogram_overlap, kld_divergence, wasserstein_distance, ks_statistic,
@@ -81,10 +84,13 @@ def _compute_metrics(orig: np.ndarray, recon: np.ndarray) -> Dict[str, float]:
 
     Backward compatible: retains all original keys.
     """
+    from spectralstream.core.math_primitives import ensure_float32
     from spectralstream.core.math_primitives.quality import QualityAssessor
 
+    orig_f32 = ensure_float32(orig)
+    recon_f32 = ensure_float32(recon)
     qa = QualityAssessor()
-    quality = qa.assess(orig, recon)
+    quality = qa.assess(orig_f32, recon_f32)
     return quality.to_dict()
 
 
@@ -95,11 +101,13 @@ def _compute_ratio(original_nbytes: int, compressed_data: bytes) -> float:
 def _sample_flat(
     tensor: np.ndarray, max_samples: int = MAX_PROFILE_SAMPLES
 ) -> np.ndarray:
-    flat = tensor.ravel()
+    from spectralstream.core.math_primitives import ensure_float32
+
+    flat = ensure_float32(tensor).ravel()
     if flat.size <= max_samples:
-        return flat.astype(np.float32)
+        return flat
     idx = np.random.choice(flat.size, max_samples, replace=False)
-    result = flat[idx].astype(np.float32)
+    result = flat[idx]
     return result
 
 
@@ -422,20 +430,48 @@ def _sensitivity_weight(tensor_type: str, sensitivity_map: Dict[str, float]) -> 
 
 
 def _method_compatibility_score(method_name: str, profile: Any) -> float:
-    """Score (0-1+) how compatible a method is with a tensor profile."""
+    """Score (0-1+) how compatible a method is with a tensor profile.
+
+    Uses structure scores from adaptive_rank when available to avoid
+    recommending structurally-assuming methods on incompatible tensor.
+    """
     name_lower = method_name.lower()
     if isinstance(profile, dict):
         nbytes = profile.get("nbytes", 0)
         e_rank = profile.get("effective_rank", 0.5)
         energy = profile.get("energy_concentration", 0.5)
         nm_sparsity = profile.get("nm_sparsity_score", 0.0)
+
+        # Structure scores (from adaptive_rank or holographic oracle signature)
+        low_rank_score = profile.get("low_rank_score", 0.0)
+        kronecker_score = profile.get("kronecker_score", 0.0)
+        toeplitz_score = profile.get("toeplitz_score", 0.0)
+        sparse_score = profile.get("sparse_score", 0.0)
     else:
         nbytes = getattr(profile, "nbytes", 0)
         e_rank = getattr(profile, "effective_rank", 0.5)
         energy = getattr(profile, "energy_concentration", 0.5)
         nm_sparsity = getattr(profile, "nm_sparsity_score", 0.0)
+        low_rank_score = getattr(profile, "low_rank_score", 0.0)
+        kronecker_score = getattr(profile, "kronecker_score", 0.0)
+        toeplitz_score = getattr(profile, "toeplitz_score", 0.0)
+        sparse_score = getattr(profile, "sparse_score", 0.0)
+
     if nbytes < 1024 and "svd" in name_lower:
         return 0.0
+
+    # Structure-aware scoring: penalize methods whose structural assumptions don't hold
+    if "kronecker" in name_lower and kronecker_score < 0.5:
+        return 0.1  # Near-zero score — Kronecker won't work on this tensor
+    if "toeplitz" in name_lower and toeplitz_score < 0.5:
+        return 0.1
+    if "hankel" in name_lower and toeplitz_score < 0.5:
+        return 0.1  # Hankel and Toeplitz share similar structure assumptions
+
+    # SVD/low-rank: boost if tensor has low-rank structure
+    if low_rank_score > 0.7 and ("svd" in name_lower or "low_rank" in name_lower):
+        return 1.5 + low_rank_score * 0.5  # Up to 2.0 for very low-rank tensors
+
     if (
         e_rank < 0.3
         and energy > 0.8
@@ -446,6 +482,11 @@ def _method_compatibility_score(method_name: str, profile: Any) -> float:
         return 1.4
     if nm_sparsity > 0.4 and "sparsity" in name_lower:
         return 1.3
+
+    # Sparsity methods: boost if tensor is actually sparse
+    if sparse_score > 0.5 and "sparsity" in name_lower:
+        return 1.2
+
     return 1.0
 
 

@@ -44,6 +44,11 @@ class ResonanceSignature:
 
     All fields are float by default (for ML-friendly fixed-length vectors)
     except shape_ndim (int) and tensor_type (str).
+
+    Structure scores (low_rank, kronecker, toeplitz, sparse, block_sparse)
+    are computed via adaptive_rank.detect_matrix_structure() and help the
+    oracle avoid structurally-assuming methods (Kronecker/Toeplitz/Hankel)
+    on tensors where those assumptions don't hold.
     """
 
     mean: float = 0.0
@@ -60,18 +65,24 @@ class ResonanceSignature:
     shape_aspect: float = 0.0
     tensor_type: str = "weight"
 
+    # Structure scores (0-1, higher = stronger structure)
+    low_rank_score: float = 0.0
+    kronecker_score: float = 0.0
+    toeplitz_score: float = 0.0
+    sparse_score: float = 0.0
+
     # Internal: origin tracking for debugging
     _tensor_name: str = ""
     _tensor_shape: Tuple[int, ...] = ()
 
     @staticmethod
     def n_features() -> int:
-        return 12  # all float fields except shape_ndim, tensor_type
+        return 16  # 12 original + 4 structure scores
 
     def to_vector(self) -> np.ndarray:
         """Convert to fixed-length numpy vector for similarity matching.
 
-        Returns shape (12,) — all numeric features including shape_ndim as float.
+        Returns shape (16,) — 12 original features + 4 structure scores.
         """
         return np.array(
             [
@@ -87,6 +98,10 @@ class ResonanceSignature:
                 self.n_elements_log,
                 float(self.shape_ndim),
                 self.shape_aspect,
+                self.low_rank_score,
+                self.kronecker_score,
+                self.toeplitz_score,
+                self.sparse_score,
             ],
             dtype=np.float64,
         )
@@ -121,6 +136,10 @@ class ResonanceSignature:
             "shape_ndim": self.shape_ndim,
             "shape_aspect": self.shape_aspect,
             "tensor_type": self.tensor_type,
+            "low_rank_score": self.low_rank_score,
+            "kronecker_score": self.kronecker_score,
+            "toeplitz_score": self.toeplitz_score,
+            "sparse_score": self.sparse_score,
         }
 
 
@@ -554,6 +573,24 @@ class HolographicOracle:
         except Exception:
             pass
 
+        # ── Structure scores (lightweight) ──
+        low_rank_score = 0.0
+        kronecker_score = 0.0
+        toeplitz_score = 0.0
+        sparse_score = 0.0
+        try:
+            from spectralstream.compression.adaptive_rank import (
+                detect_matrix_structure,
+            )
+
+            struct = detect_matrix_structure(tensor)
+            low_rank_score = struct.get("low_rank", 0.0)
+            kronecker_score = struct.get("kronecker", 0.0)
+            toeplitz_score = struct.get("toeplitz", 0.0)
+            sparse_score = struct.get("sparse", 0.0)
+        except Exception:
+            pass
+
         return ResonanceSignature(
             mean=mean,
             std=std,
@@ -568,6 +605,10 @@ class HolographicOracle:
             shape_ndim=shape_ndim,
             shape_aspect=shape_aspect,
             tensor_type=tensor_type,
+            low_rank_score=low_rank_score,
+            kronecker_score=kronecker_score,
+            toeplitz_score=toeplitz_score,
+            sparse_score=sparse_score,
             _tensor_name="",
             _tensor_shape=tensor.shape,
         )

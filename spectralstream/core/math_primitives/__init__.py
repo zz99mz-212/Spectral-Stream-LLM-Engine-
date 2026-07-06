@@ -8,10 +8,39 @@ Refactored into submodules:
   prng.py, fft.py, transforms.py, spectral.py, numerical.py,
   coherence.py, quantization.py, kernels.py, rotators.py,
   hd_vectors.py, wavelets.py, ntt.py, compressed_sensing.py,
-  decomposition.py, metrics.py
+  decomposition.py, metrics.py, bfloat16.py, dtype_detection.py
 """
 
 from __future__ import annotations
+
+# BF16 utilities
+from .bfloat16 import (
+    bfloat16_to_float32,
+    compression_ratio_adjustment,
+    dtype_is_bf16,
+    dtype_is_float,
+    ensure_float32,
+    float32_to_bfloat16,
+    is_bfloat16,
+    maybe_contract_to_uint16,
+)
+
+# Dtype detection
+from .dtype_detection import (
+    SAFETENSORS_DTYPE_MAP,
+    analyze_model_dtypes,
+    denormalize_from_compression,
+    detect_native_dtype,
+    dtype_is_bf16,
+    dtype_is_float,
+    get_dtype_size,
+    get_precision_bits,
+    ndarray_dtype_to_safetensors,
+    normalize_dtype,
+    normalize_for_compression,
+    safetensors_dtype_to_str,
+    scan_safetensors_header,
+)
 
 # PRNG
 from .prng import next_power_of_two, splitmix64
@@ -136,6 +165,29 @@ from .metrics_dashboard import (
 )
 
 __all__ = [
+    # BF16
+    "bfloat16_to_float32",
+    "float32_to_bfloat16",
+    "is_bfloat16",
+    "ensure_float32",
+    "maybe_contract_to_uint16",
+    "compression_ratio_adjustment",
+    "dtype_is_bf16",
+    "dtype_is_float",
+    # Dtype detection
+    "SAFETENSORS_DTYPE_MAP",
+    "analyze_model_dtypes",
+    "denormalize_from_compression",
+    "detect_native_dtype",
+    "dtype_is_bf16",
+    "dtype_is_float",
+    "get_dtype_size",
+    "get_precision_bits",
+    "ndarray_dtype_to_safetensors",
+    "normalize_dtype",
+    "normalize_for_compression",
+    "safetensors_dtype_to_str",
+    "scan_safetensors_header",
     "splitmix64",
     "next_power_of_two",
     "fft",

@@ -3,6 +3,5 @@ __pycache__/
 .venv/
 .intelligence/
 intelligence/index/audit_log.json
-models/
 .pytest_cache/
 .ruff_cache

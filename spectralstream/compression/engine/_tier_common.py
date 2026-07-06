@@ -73,6 +73,10 @@ MANUAL_TIER_OVERRIDES: Dict[str, MethodTier] = {
     "dct_spectral": MethodTier.TIER1_REAL_COMPRESSION,
     "tensor_train": MethodTier.TIER1_REAL_COMPRESSION,
     "fwht_compress": MethodTier.TIER1_REAL_COMPRESSION,
+    # Toeplitz/Hankel: structural assumptions rarely hold on real weights
+    # Lowered from Tier 1 (decomposition) to Tier 5 (last resort)
+    "toeplitz": MethodTier.TIER5_QUANTIZATION,
+    "hankel": MethodTier.TIER5_QUANTIZATION,
 }
 
 DEFAULT_TIER = MethodTier.TIER1_REAL_COMPRESSION

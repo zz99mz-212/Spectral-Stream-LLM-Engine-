@@ -521,6 +521,25 @@ class WorldModelCompressor:
 
         # ── Phase 4: Parallel group-member compression ────────────────
         compressed_results: Dict[str, Tuple[bytes, Dict[str, Any]]] = {}
+        phase4_start = time.perf_counter()
+        parallel_timeout = max(30.0, 5.0 * len(groups))
+        progress_lock = None
+        try:
+            from threading import Lock
+
+            progress_lock = Lock()
+        except ImportError:
+            pass
+
+        completed_count = 0
+        total_parallel = sum(len(g.tensor_names) for g in groups) - len(groups)
+
+        if not quiet:
+            print(
+                f"  Parallel phase: {total_parallel} group members "
+                f"across {self._num_workers} workers "
+                f"(timeout={parallel_timeout:.0f}s)"
+            )
 
         with ThreadPoolExecutor(max_workers=self._num_workers) as pool:
             futures = {}
@@ -539,7 +558,7 @@ class WorldModelCompressor:
             for future in as_completed(futures):
                 name = futures[future]
                 try:
-                    data, meta = future.result()
+                    data, meta = future.result(timeout=parallel_timeout)
                     compressed_results[name] = (data, meta)
                 except Exception as exc:
                     logger.warning(
@@ -549,6 +568,22 @@ class WorldModelCompressor:
                         b"",
                         {"method": "passthrough", "error": 0.0, "ratio": 1.0},
                     )
+                completed_count += 1
+                if (
+                    progress_lock is not None
+                    and not quiet
+                    and completed_count % max(1, total_parallel // 20) == 0
+                ):
+                    pct = 100.0 * completed_count / max(total_parallel, 1)
+                    elapsed_p4 = time.perf_counter() - phase4_start
+                    print(
+                        f"    Parallel: {completed_count}/{total_parallel} "
+                        f"({pct:.0f}%) in {elapsed_p4:.1f}s"
+                    )
+
+        if not quiet:
+            elapsed_p4 = time.perf_counter() - phase4_start
+            print(f"    Parallel phase done: {elapsed_p4:.1f}s")
 
         # ── Phase 5: Write SSF file + build results dict ──────────────
         from spectralstream.format.writer import SSFWriter

@@ -8,8 +8,10 @@ import numpy as np
 from spectralstream.core.math_primitives import (
     compression_quality,
     dct,
+    detect_native_dtype,
     effective_rank,
     energy_concentration,
+    ensure_float32,
     spectral_entropy as _spectral_entropy,
 )
 
@@ -116,12 +118,14 @@ class CompressionProfiler:
             Fully populated profile (all fields set).
         """
         tensor = np.asarray(tensor)
-        flat = tensor.ravel().astype(np.float64)
+        native_dtype = detect_native_dtype(tensor)
+        flat = ensure_float32(tensor).ravel().astype(np.float64)
         n = flat.size
         p = TensorProfile(
             name=name,
             shape=tensor.shape,
             dtype=str(tensor.dtype),
+            native_dtype=native_dtype,
             n_elements=n,
             nbytes=tensor.nbytes,
         )
@@ -202,12 +206,14 @@ class CompressionProfiler:
         calibration: Optional[CalibrationData] = None,
     ) -> TensorProfile:
         tensor = np.asarray(tensor)
-        flat = tensor.ravel().astype(np.float64)
+        native_dtype = detect_native_dtype(tensor)
+        flat = ensure_float32(tensor).ravel().astype(np.float64)
         n = flat.size
         p = TensorProfile(
             name=name,
             shape=tensor.shape,
             dtype=str(tensor.dtype),
+            native_dtype=native_dtype,
             n_elements=n,
             nbytes=tensor.nbytes,
         )

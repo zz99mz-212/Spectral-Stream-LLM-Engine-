@@ -155,6 +155,78 @@ class DirectCascadeEngine:
         ],
     }
 
+    # ── High-Ratio Cascade Patterns (4-5 stage, 200:1+) ──────────────────────
+    # These patterns use AGGRESSIVE SVD ranks (auto:200 = min_dim // 200)
+    # so Stage 1 leaves structure in the residual for downstream stages.
+    HIGH_RATIO_CASCADES: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {
+        # ── 3-Stage ──────────────────────────────────────────────────
+        "svd_lowrank_int4_huffman": [
+            ("svd_compress", {"rank": "auto:200"}),
+            ("block_int4", {"block_size": 16}),
+            ("huffman", {}),
+        ],
+        "fwht_int4_sparse_rans": [
+            ("fwht_compress", {"keep_ratio": 0.08}),
+            ("hadamard_int4", {"block_size": 16}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("rans", {}),
+        ],
+        "tt_quant_sparse_huffman": [
+            ("tensor_train", {"rank": 4}),
+            ("delta_int4", {"block_size": 32}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("huffman", {}),
+        ],
+        # ── 4-Stage ──────────────────────────────────────────────────
+        "svd_int4_sparse_huffman": [
+            ("svd_compress", {"rank": "auto:200"}),
+            ("block_int4", {"block_size": 16}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("huffman", {}),
+        ],
+        "dct_int4_sparse_huffman": [
+            ("dct_spectral", {"keep_ratio": 0.06}),
+            ("block_int4", {"block_size": 16}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("huffman", {}),
+        ],
+        "svd_delta_huffman_rans": [
+            ("svd_compress", {"rank": "auto:200"}),
+            ("delta_int4", {"block_size": 32}),
+            ("huffman", {}),
+            ("rans", {}),
+        ],
+        # ── 5-Stage (200:1+) ──────────────────────────────────────────
+        "tt_quant_sparse_fwht_huffman": [
+            ("tensor_train", {"rank": 4}),
+            ("delta_int4", {"block_size": 32}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("fwht_compress", {"keep_ratio": 0.1}),
+            ("huffman", {}),
+        ],
+        "svd_tt_quant_sparse_huffman": [
+            ("svd_compress", {"rank": "auto:200"}),
+            ("tensor_train", {"rank": 4}),
+            ("block_int4", {"block_size": 16}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("huffman", {}),
+        ],
+        "svd_dct_int4_sparse_huffman": [
+            ("svd_compress", {"rank": "auto:200"}),
+            ("dct_spectral", {"keep_ratio": 0.12}),
+            ("block_int4", {"block_size": 16}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("huffman", {}),
+        ],
+        # ── Embedding ────────────────────────────────────────────────
+        "embedding_triple_cascade": [
+            ("svd_compress", {"rank": "auto:200"}),
+            ("block_int4", {"block_size": 16}),
+            ("sparsity_int4", {"group_size": 32}),
+            ("huffman", {}),
+        ],
+    }
+
     # Combined patterns map (backward compat)
     ALL_PATTERNS: Dict[str, List[Tuple[str, Dict[str, Any]]]] = {}
 
@@ -173,8 +245,9 @@ class DirectCascadeEngine:
                     entropy_post_process,
                 )
                 self.entropy_post_process = None
-        # ALL_PATTERNS = CASCADE_PATTERNS (simplified — no more separate dicts)
+        # ALL_PATTERNS = CASCADE_PATTERNS + HIGH_RATIO_CASCADES
         self.ALL_PATTERNS = dict(self.CASCADE_PATTERNS)
+        self.ALL_PATTERNS.update(dict(self.HIGH_RATIO_CASCADES))
 
     # ── Parameter Resolution Helpers ──────────────────────────────────────
 
@@ -428,9 +501,9 @@ class DirectCascadeEngine:
 
         # ── 2D+ weight tensors: SVD rank-based ─────────────────────────
         if effective_target >= 500:
-            return "max_compression"
+            return "svd_tt_quant_sparse_huffman"
         if effective_target >= 200:
-            return "extreme"
+            return "svd_int4_sparse_huffman"
         if effective_target >= 50:
             return "aggressive"
         return "balanced"

@@ -47,7 +47,6 @@ try:
     from spectralstream.compression.benchmark import (
         BenchmarkRunner,
         ReportGenerator,
-        DialInOptimizer,
     )
 
     _has_benchmark = True
@@ -158,6 +157,8 @@ _SAFETENSORS_DTYPE_MAP: Dict[str, np.dtype] = {
     "F64": np.float64,
     "F16": np.float16,
     "BF16": np.uint16,
+    "bfloat16": np.uint16,
+    "bf16": np.uint16,
     "I8": np.int8,
     "I16": np.int16,
     "I32": np.int32,
@@ -168,6 +169,13 @@ _SAFETENSORS_DTYPE_MAP: Dict[str, np.dtype] = {
     "U64": np.uint64,
     "BOOL": np.bool_,
 }
+
+
+def _bf16_to_f32(tensor: np.ndarray, dtype_str: str) -> np.ndarray:
+    """Convert bfloat16 tensor (stored as uint16) to float32."""
+    if dtype_str in ("BF16", "bfloat16", "bf16"):
+        return (tensor.astype(np.uint32) << 16).view(np.float32)
+    return tensor
 
 
 class _SafetensorsLoader:
@@ -202,11 +210,16 @@ class _SafetensorsLoader:
         offset: int,
         nbytes: int,
     ) -> np.ndarray:
-        """Read a single tensor from the file."""
+        """Read a single tensor from the file, converting bfloat16 to float32."""
         header_size, _ = self._read_header(raw=True)
         dt = _SAFETENSORS_DTYPE_MAP.get(dtype_str)
         if dt is None:
-            raise ValueError(f"Unsupported dtype: {dtype_str}")
+            logger.warning(
+                "Unsupported dtype '%s' for tensor '%s', falling back to float32",
+                dtype_str,
+                name,
+            )
+            dt = np.float32
         dt_instance = np.dtype(dt)
         file_offset = 8 + header_size + offset
         if self._file is None:
@@ -220,6 +233,8 @@ class _SafetensorsLoader:
                 f"expected {expected} (shape={shape}, dtype={dtype_str})"
             )
         arr = np.frombuffer(data[:expected], dtype=dt).reshape(shape)
+        if dtype_str in ("BF16", "bfloat16", "bf16"):
+            arr = _bf16_to_f32(arr, dtype_str)
         return arr
 
     def _read_header(self, raw: bool = False) -> Tuple[int, Dict[str, Any]]:
@@ -636,6 +651,54 @@ def cmd_compress(args: argparse.Namespace) -> None:
             )
         except Exception as exc:
             logger.debug("Mode auto-select skipped: %s", exc)
+
+    # --- UnifiedStreamingPipeline mode (--mode flag overrides default path) ---
+    if args.mode is not None:
+        from spectralstream.compression.streaming.unified_streaming_pipeline import (
+            UnifiedStreamingPipeline,
+        )
+
+        memory_budget_mb = args.memory_budget_mb
+        if memory_budget_mb is None:
+            memory_budget_mb = args.max_memory_gb * 1024
+        logger.info(
+            "UnifiedStreamingPipeline mode: %s (budget=%d MB)",
+            args.mode,
+            memory_budget_mb,
+        )
+
+        engine = CompressionIntelligenceEngine(
+            config=CompressionConfig(
+                target_ratio=args.target_ratio or 5000.0,
+                max_error=args.max_error or 0.01,
+                streaming=args.mode == "streaming",
+                max_memory_gb=args.max_memory_gb,
+            )
+        )
+
+        pipeline = UnifiedStreamingPipeline(
+            method_oracle=engine.oracle,
+            cascade_engine=None,
+            memory_budget_mb=int(memory_budget_mb),
+            mode=args.mode,
+        )
+
+        report = pipeline.compress_model(
+            model_path=args.model,
+            output_path=args.output,
+            target_ratio=args.target_ratio or 5000.0,
+            max_error=args.max_error or 0.01,
+            quiet=args.quiet,
+            resume=hasattr(args, "resume") and args.resume,
+        )
+
+        for line in report.summary_lines():
+            logger.info(line)
+
+        if args.output_report:
+            pipeline.save_report_json(report, args.output_report)
+
+        return
 
     config = CompressionConfig(
         target_ratio=args.target_ratio,
@@ -2050,71 +2113,16 @@ def _benchmark_cascade(args: argparse.Namespace, runner: Any) -> None:
 
 
 def cmd_dial_in(args: argparse.Namespace) -> None:
-    """Run grid search optimization to find optimal compression parameters."""
-    if not _has_benchmark:
-        logger.error("Benchmark module not available")
+    """Run R&D dial-in: systematically test, measure, and tune compression."""
+    try:
+        from spectralstream.compression.world_model.dial_in_engine import (
+            cmd_dial_in_main,
+        )
+
+        cmd_dial_in_main(args)
+    except ImportError as e:
+        logger.error("Dial-in engine not available: %s", e)
         return
-
-    optimizer = DialInOptimizer()
-    tensor_types = None
-    if args.tensor_types:
-        tensor_types = [t.strip() for t in args.tensor_types.split(",")]
-
-    logger.info("=" * 60)
-    logger.info("Dial-In Optimizer: Grid Search for Optimal Parameters")
-    logger.info("=" * 60)
-    logger.info("Target ratio: %sx", args.target_ratio)
-    if tensor_types:
-        logger.info("Tensor types: %s", ", ".join(tensor_types))
-    else:
-        logger.info("Tensor types: all")
-
-    results = optimizer.optimize_all_tensor_types(
-        target_ratio=args.target_ratio,
-        tensor_types=tensor_types,
-    )
-
-    if args.verbose:
-        for ttype, t_results in results.items():
-            logger.info("")
-            logger.info("  %s:", ttype)
-            for tr in t_results[:3]:
-                logger.info(
-                    "    %-20s score=%.4f  error=%.6f  ratio=%.1fx  params=%s",
-                    tr.method,
-                    tr.best_score,
-                    tr.best_error,
-                    tr.best_ratio,
-                    tr.best_params,
-                )
-
-    recipe = optimizer.generate_recipe(
-        target_ratio=args.target_ratio,
-        tensor_types=tensor_types,
-        results=results,
-    )
-
-    if args.output:
-        path = optimizer.save_recipe(recipe, args.output)
-        logger.info("")
-        logger.info("Compression recipe saved to: %s", path)
-        logger.info("")
-        logger.info("Recipe summary:")
-        for ttype, cfg in recipe.tensor_type_recipes.items():
-            logger.info(
-                "  %-15s → %-20s params=%s", ttype, cfg["method"], cfg["params"]
-            )
-    else:
-        logger.info("")
-        logger.info("Results (use --output to save recipe):")
-        for ttype, cfg in recipe.tensor_type_recipes.items():
-            logger.info(
-                "  %-15s → %-20s error=%.6f ratio=%.1fx",
-                ttype,
-                cfg["method"],
-                cfg["expected_error"],
-                cfg["expected_ratio"],
-            )
 
 
 def _benchmark_model(args: argparse.Namespace) -> None:
@@ -2612,6 +2620,15 @@ Examples:
     )
     cp.add_argument("--no-streaming", dest="streaming", action="store_false")
     cp.add_argument(
+        "--mode",
+        type=str,
+        default=None,
+        choices=["streaming", "ram", "auto"],
+        help="Compression mode: streaming (mmap, low RAM), ram (load all to RAM), "
+        "auto (auto-detect based on model size vs available RAM). "
+        "When set, uses the UnifiedStreamingPipeline instead of the default path.",
+    )
+    cp.add_argument(
         "--output-report",
         type=str,
         default="",
@@ -2653,6 +2670,12 @@ Examples:
         type=int,
         default=0,
         help="Chunk size in MB for streaming (0 = auto-detect, default: 0)",
+    )
+    cp.add_argument(
+        "--memory-budget-mb",
+        type=float,
+        default=None,
+        help="Memory budget in MB for UnifiedStreamingPipeline (default: auto-detect from max-memory-gb)",
     )
     cp.add_argument(
         "--no-grouping",
@@ -2909,28 +2932,58 @@ Examples:
         help="Maximum tensors to benchmark (0=all)",
     )
 
-    # dial-in (grid search optimizer for R&D)
+    # dial-in (R&D automation engine)
     di = sub.add_parser(
         "dial-in",
-        help="Run grid search optimization to find optimal compression parameters per tensor type",
+        help="R&D dial-in: systematically test, measure, and tune compression parameters",
+    )
+    di.add_argument(
+        "model",
+        nargs="?",
+        default="",
+        help="Path to model.safetensors (optional — uses synthetic tensors if omitted)",
     )
     di.add_argument(
         "--target-ratio",
         type=float,
-        default=100.0,
-        help="Target compression ratio for optimization (default: 100)",
+        default=400.0,
+        help="Target compression ratio (default: 400)",
     )
     di.add_argument(
-        "--output",
+        "--max-error",
+        type=float,
+        default=0.01,
+        help="Maximum relative error (default: 0.01 = 1%%)",
+    )
+    di.add_argument(
+        "--output-dir",
         type=str,
-        default="compression_recipe.json",
-        help="Save optimal recipe to JSON file (default: compression_recipe.json)",
+        default="/tmp/dial_in",
+        help="Directory for reports (default: /tmp/dial_in)",
     )
     di.add_argument(
-        "--tensor-types",
+        "--quick",
+        action="store_true",
+        default=False,
+        help="Quick assessment: 1 rep per type, 5 cascade patterns, no param tuning",
+    )
+    di.add_argument(
+        "--exhaustive",
+        action="store_true",
+        default=False,
+        help="Full R&D: test ALL methods, ALL cascades, ALL parameters",
+    )
+    di.add_argument(
+        "--focus",
         type=str,
         default="",
-        help="Comma-separated tensor types to optimize (default: all)",
+        help="Comma-separated tensor types to focus on (e.g. 'attention,ffn')",
+    )
+    di.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of parallel workers (default: 4)",
     )
     di.add_argument(
         "--verbose",

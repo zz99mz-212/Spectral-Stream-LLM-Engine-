@@ -1,7 +1,12 @@
 """
+DEPRECATED — Use spectralstream.inference.spectral instead.
+
 Spectral Weight Compression — DCT-domain model weight storage.
 
 Inspired by Quasar's QSF format but clean-room implemented.
+
+.. deprecated::
+    Use spectralstream.inference.spectral.SpectralWeightStore instead.
 
 Key insight: Neural network weights have smooth, low-frequency structure.
 DCT concentrates energy in the first few coefficients (typically top 5%
@@ -18,12 +23,21 @@ For DeepSeek V4 Flash (284B params, estimated ~170GB at Q4):
 - RAM savings: 161.5GB at rest
 """
 
+import warnings as _warnings
+
 import numpy as np
 from typing import Optional
 from pathlib import Path
 import json
 from collections import OrderedDict
 import time
+
+_warnings.warn(
+    "spectralstream.utils.legacy_spectral_weights is deprecated. "
+    "Use spectralstream.inference.spectral.SpectralWeightStore instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from spectralstream.core.math_primitives.transforms import (
     dct as _dct_1d,

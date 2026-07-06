@@ -16,6 +16,7 @@ __all__ = [
     "compress_with_grouping",
     "extract_name_pattern",
     "group_tensors",
+    "group_by_tensor_type",
     "get_tensor_metadata_from_dict",
     "get_tensor_metadata_from_info",
 ]
@@ -236,7 +237,6 @@ def group_tensors(
     List[TensorGroup]
         List of tensor groups, with representative selected.
     """
-    # Group by (shape_key, dtype, pattern)
     groups: Dict[Tuple[tuple, str, str], TensorGroup] = {}
 
     for name, (shape, dtype) in tensor_metadata.items():
@@ -251,16 +251,70 @@ def group_tensors(
             )
         groups[key].tensor_names.append(name)
 
-    # Select representative for each group
     result: List[TensorGroup] = []
     for group in groups.values():
         group.tensor_names.sort(key=_tensor_sort_key)
         group.representative = _select_representative(group.tensor_names)
         result.append(group)
 
-    # Sort by group size (descending) for priority processing
     result.sort(key=lambda g: -g.size)
     return result
+
+
+def _classify_tensor_type(name: str) -> str:
+    nl = name.lower()
+    if any(k in nl for k in ("q_proj", "wq", "self_attn.q", "attention.wq")):
+        return "attention_q"
+    if any(k in nl for k in ("k_proj", "wk", "self_attn.k", "attention.wk")):
+        return "attention_k"
+    if any(k in nl for k in ("v_proj", "wv", "self_attn.v", "attention.wv")):
+        return "attention_v"
+    if any(k in nl for k in ("o_proj", "wo", "self_attn.o", "attention.wo")):
+        return "attention_o"
+    if any(k in nl for k in ("gate_proj", "w1", "mlp.gate")):
+        return "ffn_gate"
+    if any(k in nl for k in ("up_proj", "w3", "mlp.up")):
+        return "ffn_up"
+    if any(k in nl for k in ("down_proj", "w2", "mlp.down")):
+        return "ffn_down"
+    if any(k in nl for k in ("embed", "wte", "tok_embed")):
+        return "embedding"
+    if any(k in nl for k in ("norm", "rms", "ln_")):
+        return "norm"
+    if any(k in nl for k in ("head", "lm_head", "output")):
+        return "lm_head"
+    if any(k in nl for k in ("bias",)):
+        return "bias"
+    return "other"
+
+
+def group_by_tensor_type(
+    tensor_metadata: Dict[str, Tuple[Tuple[int, ...], str]],
+) -> Dict[str, List[str]]:
+    """Group tensors by their CLASSIFIED TYPE, NOT by exact shape.
+
+    Two attention weight matrices with different shapes
+    (e.g., 1536x6144 vs 1536x1536) can share the same compression strategy
+    because they respond similarly to compression methods.
+
+    Target: ~13 groups (one per tensor type) instead of ~200 shape groups,
+    reducing representative tests from 200 x 80 = 16,000 to 13 x 80 = 1,040.
+
+    Parameters
+    ----------
+    tensor_metadata : Dict[str, Tuple[Tuple[int, ...], str]]
+        Mapping from tensor name to (shape, dtype_string).
+
+    Returns
+    -------
+    Dict[str, List[str]]
+        Mapping from tensor type to list of tensor names in that group.
+    """
+    groups: Dict[str, List[str]] = {}
+    for name in tensor_metadata:
+        ttype = _classify_tensor_type(name)
+        groups.setdefault(ttype, []).append(name)
+    return groups
 
 
 def _tensor_sort_key(name: str) -> tuple:

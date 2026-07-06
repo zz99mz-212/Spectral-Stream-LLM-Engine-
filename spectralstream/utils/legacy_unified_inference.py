@@ -1,9 +1,14 @@
 """
+DEPRECATED — Use spectralstream.inference instead.
+
 Unified Inference Engine — Single Clean Implementation
 =======================================================
 Consolidates: inference_engine.py (418L), unified_inference.py (1943L),
 cpu_inference_engine.py (1696L), adaptive_inference.py (808L),
 ast_inference.py (327L), streaming_engine.py (1531L).
+
+.. deprecated::
+    Use spectralstream.inference.UnifiedInferenceEngine instead.
 
 Best-of-breed from each:
   - inference_engine.py:    SpectralInferenceEngine, TransformerLayer, GGUF loading
@@ -30,12 +35,20 @@ import struct
 import sys
 import time
 import threading
+import warnings as _warnings
 from collections import OrderedDict, deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+_warnings.warn(
+    "spectralstream.utils.legacy_unified_inference is deprecated. "
+    "Use spectralstream.inference.UnifiedInferenceEngine instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import numpy as np
 

@@ -35,6 +35,7 @@ class TensorDType(IntEnum):
             np.dtype("float16"): cls.F16,
             np.dtype("int8"): cls.INT8,
             np.dtype("uint8"): cls.U8,
+            np.dtype("uint16"): cls.BF16,
         }
         try:
             m[np.dtype("bfloat16")] = cls.BF16

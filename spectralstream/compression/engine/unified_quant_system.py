@@ -22,6 +22,7 @@ from spectralstream.core.math_primitives import (
     idct,
     dct_2d,
     idct_2d,
+    ensure_float32,
     fwht,
     ifwht,
     LloydMaxQuantizer,
@@ -326,7 +327,7 @@ class HadamardPreconditioner:
         return self._signs_cache[n]
 
     def precondition(self, x: np.ndarray) -> Tuple[np.ndarray, dict]:
-        x = np.asarray(x, dtype=np.float32)
+        x = ensure_float32(x)
         original_shape = x.shape
         if x.ndim == 1:
             padded_len = next_power_of_two(len(x))
@@ -401,7 +402,7 @@ def _compress_raw(tensor: np.ndarray) -> Tuple[bytes, int]:
 
 def _compress_int8(tensor: np.ndarray) -> Tuple[bytes, int]:
     orig_size = tensor.nbytes
-    flat = tensor.ravel().astype(np.float32)
+    flat = ensure_float32(tensor).ravel()
     n = len(flat)
     block_size = 128
     n_blocks = (n + block_size - 1) // block_size
@@ -437,7 +438,7 @@ def _decompress_int8(data: bytes, n_elements: int) -> np.ndarray:
 
 def _compress_int4(tensor: np.ndarray) -> Tuple[bytes, int]:
     orig_size = tensor.nbytes
-    flat = tensor.ravel().astype(np.float32)
+    flat = ensure_float32(tensor).ravel()
     n = len(flat)
     block_size = 32
     padded_n = int(math.ceil(n / block_size) * block_size)
@@ -491,7 +492,7 @@ def _compress_dct_spectral(
     tensor: np.ndarray, keep_energy: float = 0.95, n_bits: int = 8
 ) -> Tuple[bytes, int]:
     orig_size = tensor.nbytes
-    t = tensor.astype(np.float64)
+    t = ensure_float32(tensor).astype(np.float64)
     if t.ndim == 1:
         coeffs = dct(t)
         total_energy = float(np.sum(coeffs**2))
@@ -572,7 +573,7 @@ def _decompress_dct_spectral(
 
 def _compress_hadamard_quant(tensor: np.ndarray, n_bits: int = 4) -> Tuple[bytes, int]:
     orig_size = tensor.nbytes
-    flat = tensor.ravel().astype(np.float32)
+    flat = ensure_float32(tensor).ravel()
     padded_len = next_power_of_two(len(flat))
     padded = np.zeros(padded_len, dtype=np.float32)
     padded[: len(flat)] = flat
@@ -631,12 +632,14 @@ class UnifiedQuantizationSystem:
 
     def profile(self, tensor: np.ndarray, name: str = "") -> TensorProfile:
         tensor = np.asarray(tensor)
-        flat = tensor.ravel().astype(np.float64)
+        native_dtype = "BF16" if tensor.dtype == np.uint16 else str(tensor.dtype)
+        flat = ensure_float32(tensor).astype(np.float64)
         n = flat.size
         t = TensorProfile(
             name=name,
             shape=tensor.shape,
             dtype=str(tensor.dtype),
+            native_dtype=native_dtype,
             n_elements=n,
             nbytes=tensor.nbytes,
         )
@@ -831,7 +834,7 @@ class UnifiedQuantizationSystem:
                 0.05,
             )
         elif method_lower == "sparsify":
-            flat = tensor.ravel().astype(np.float64)
+            flat = ensure_float32(tensor).astype(np.float64)
             threshold = float(np.percentile(np.abs(flat), 80))
             mask = np.abs(flat) >= threshold
             sparse_vals = flat[mask]

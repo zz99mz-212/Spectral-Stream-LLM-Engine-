@@ -60,6 +60,11 @@ except ImportError:
     HDCDraftEngine = None
 
 try:
+    from spectralstream.kv_cache.spectral import HrrMemory
+except ImportError:
+    HrrMemory = None
+
+try:
     from spectralstream.inference import HighThroughputHDC
 except ImportError:
     HighThroughputHDC = None

@@ -45,6 +45,7 @@ class TensorProfile:
     name: str = ""
     shape: Tuple[int, ...] = (0,)
     dtype: str = ""
+    native_dtype: str = ""  # Original dtype from safetensors (e.g., "BF16")
     n_elements: int = 0
     nbytes: int = 0
     tensor_type: str = "generic"

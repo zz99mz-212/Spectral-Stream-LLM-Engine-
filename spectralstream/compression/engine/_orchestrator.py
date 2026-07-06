@@ -1009,9 +1009,7 @@ class CompressionIntelligenceEngine:
                     rep_tensor = tensor_dict[rep_name]
                 elif mmap_engine is not None:
                     try:
-                        rep_tensor = np.asarray(
-                            mmap_engine.get_tensor(rep_name), dtype=np.float32
-                        )
+                        rep_tensor = np.asarray(mmap_engine.get_tensor(rep_name))
                     except Exception as exc:
                         logger.warning(
                             "Failed to load representative '%s': %s", rep_name, exc
@@ -1088,9 +1086,7 @@ class CompressionIntelligenceEngine:
                             if tensor_dict is not None and tn in tensor_dict:
                                 t = tensor_dict[tn]
                             elif mmap_engine is not None:
-                                t = np.asarray(
-                                    mmap_engine.get_tensor(tn), dtype=np.float32
-                                )
+                                t = np.asarray(mmap_engine.get_tensor(tn))
                             else:
                                 continue
                             data, meta, ratio, error = self.compress_fast(
@@ -1129,7 +1125,7 @@ class CompressionIntelligenceEngine:
                         if tensor_dict is not None and tn in tensor_dict:
                             t = tensor_dict[tn]
                         elif mmap_engine is not None:
-                            t = np.asarray(mmap_engine.get_tensor(tn), dtype=np.float32)
+                            t = np.asarray(mmap_engine.get_tensor(tn))
                         else:
                             continue
 
@@ -1464,6 +1460,18 @@ class CompressionIntelligenceEngine:
 
         return MultiplicativeStackingEngine
 
+    @staticmethod
+    def _convert_output_dtype(tensor: np.ndarray, metadata: dict) -> np.ndarray:
+        """Convert tensor to native dtype based on metadata flags.
+
+        If metadata contains _BF16_FLAG, convert float32 output to BF16 (uint16).
+        """
+        from spectralstream.core.math_primitives import float32_to_bfloat16
+
+        if metadata.get("_input_was_bf16", False):
+            return float32_to_bfloat16(tensor)
+        return tensor
+
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         if metadata.get("strategy"):
             return decompress_with_strategy(data, metadata, self._methods)
@@ -1491,7 +1499,7 @@ class CompressionIntelligenceEngine:
                 shape = metadata.get("original_shape")
                 if shape is not None:
                     recon = recon.reshape(shape)
-                return recon.astype(np.float32)
+                return self._convert_output_dtype(recon, metadata)
             except Exception:
                 pass
 
@@ -1507,13 +1515,14 @@ class CompressionIntelligenceEngine:
                     shape = metadata.get("original_shape")
                     if shape is not None and recon.shape != shape:
                         recon = recon.reshape(shape)
-                    return recon.astype(np.float32)
+                    return self._convert_output_dtype(recon, metadata)
             except Exception:
                 fallback_count += 1
                 continue
 
         try:
-            return np.frombuffer(data, dtype=np.float16).astype(np.float32)
+            out = np.frombuffer(data, dtype=np.float16).astype(np.float32)
+            return self._convert_output_dtype(out, metadata)
         except Exception:
             return np.frombuffer(data, dtype=np.uint8)
 

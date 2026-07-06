@@ -1,4 +1,10 @@
-"""Built-in compression methods (block_int8, block_int4, hadamard, sparsity, delta)."""
+"""Built-in compression methods (block_int8, block_int4, hadamard, sparsity, delta).
+
+BF16 support: all compress/decompress methods accept bfloat16 tensors (stored
+as uint16) and convert to float32 only for the arithmetic, then back to uint16
+for output.  The ``_input_was_bf16`` metadata flag tracks whether precision
+conversion was needed.
+"""
 
 import functools
 import gc
@@ -16,7 +22,31 @@ from spectralstream.core.math_primitives import (
     idct_2d,
     dct,
     idct,
+    bfloat16_to_float32,
+    float32_to_bfloat16,
+    is_bfloat16,
 )
+
+# Metadata key used to flag BF16 inputs.
+_BF16_FLAG = "_input_was_bf16"
+
+
+def _bf16_normalize(tensor: np.ndarray) -> Tuple[np.ndarray, bool]:
+    """Convert BF16 (uint16) to float32 if necessary.
+
+    Returns (float32_tensor, was_bf16).  If the tensor is already float32
+    (or any other non-uint16 dtype), returns it unchanged with was_bf16=False.
+    """
+    if is_bfloat16(tensor):
+        return bfloat16_to_float32(tensor), True
+    return tensor, False
+
+
+def _bf16_denormalize(tensor: np.ndarray, was_bf16: bool) -> np.ndarray:
+    """Convert float32 result back to uint16 BF16 if the input was BF16."""
+    if was_bf16:
+        return float32_to_bfloat16(tensor)
+    return tensor
 
 
 def _process_blocks(tensor, block_size, fn):
@@ -133,7 +163,8 @@ class _BlockINT8:
     category = "quantization"
 
     def compress(self, tensor: np.ndarray, block_size: int = 128) -> Tuple[bytes, dict]:
-        flat = tensor.ravel().astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        flat = tensor_f32.ravel()
         n = len(flat)
         padded_n = int(math.ceil(n / block_size) * block_size)
         padded = np.zeros(padded_n, dtype=np.float32)
@@ -150,6 +181,7 @@ class _BlockINT8:
             "n_elements": n,
             "block_size": block_size,
             "compression_ratio": tensor.nbytes / max(len(compressed), 1),
+            _BF16_FLAG: was_bf16,
         }
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
@@ -164,7 +196,9 @@ class _BlockINT8:
             .astype(np.float32)
         )
         out = (quantized * scales[:, np.newaxis]).ravel()
-        return out[:n]
+        out = out[:n]
+        was_bf16 = metadata.get(_BF16_FLAG, False)
+        return _bf16_denormalize(out, was_bf16)
 
 
 class _BlockINT4:
@@ -172,7 +206,8 @@ class _BlockINT4:
     category = "quantization"
 
     def compress(self, tensor: np.ndarray, block_size: int = 16) -> Tuple[bytes, dict]:
-        flat = tensor.ravel().astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        flat = tensor_f32.ravel()
         n = len(flat)
         padded_n = int(math.ceil(n / block_size) * block_size)
         padded = np.zeros(padded_n, dtype=np.float32)
@@ -198,6 +233,7 @@ class _BlockINT4:
             "padded_n": padded_n,
             "block_size": block_size,
             "compression_ratio": tensor.nbytes / max(len(compressed), 1),
+            _BF16_FLAG: was_bf16,
         }
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
@@ -218,7 +254,9 @@ class _BlockINT4:
         all_vals[1::2] = hi
         blocks = all_vals.reshape(n_blocks, block_size)
         out = (blocks * scales[:, np.newaxis]) + bmins[:, np.newaxis]
-        return out.ravel()[:orig_n]
+        out = out.ravel()[:orig_n]
+        was_bf16 = metadata.get(_BF16_FLAG, False)
+        return _bf16_denormalize(out, was_bf16)
 
 
 class _HadamardINT8:
@@ -226,7 +264,8 @@ class _HadamardINT8:
     category = "transform_quant"
 
     def compress(self, tensor: np.ndarray, block_size: int = 128) -> Tuple[bytes, dict]:
-        flat = tensor.ravel().astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        flat = tensor_f32.ravel()
         n_orig = len(flat)
         padded_len = next_power_of_two(n_orig)
         padded = np.zeros(padded_len, dtype=np.float32)
@@ -251,6 +290,7 @@ class _HadamardINT8:
             "block_size": block_size,
             "original_shape": tensor.shape,
             "compression_ratio": tensor.nbytes / max(len(compressed), 1),
+            _BF16_FLAG: was_bf16,
         }
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
@@ -273,7 +313,9 @@ class _HadamardINT8:
         rng = np.random.RandomState(42)
         signs = rng.choice([-1.0, 1.0], size=padded_len).astype(np.float32)
         result = ifwht(rotated, normalize=True) * signs
-        return result[:orig_n].reshape(metadata.get("original_shape", (orig_n,)))
+        out = result[:orig_n].reshape(metadata.get("original_shape", (orig_n,)))
+        was_bf16 = metadata.get(_BF16_FLAG, False)
+        return _bf16_denormalize(out, was_bf16)
 
 
 class _HadamardINT4:
@@ -281,7 +323,8 @@ class _HadamardINT4:
     category = "transform_quant"
 
     def compress(self, tensor: np.ndarray, block_size: int = 16) -> Tuple[bytes, dict]:
-        flat = tensor.ravel().astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        flat = tensor_f32.ravel()
         n_orig = len(flat)
         padded_len = next_power_of_two(n_orig)
         padded = np.zeros(padded_len, dtype=np.float32)
@@ -311,6 +354,7 @@ class _HadamardINT4:
             "block_size": block_size,
             "original_shape": tensor.shape,
             "compression_ratio": tensor.nbytes / max(len(compressed), 1),
+            _BF16_FLAG: was_bf16,
         }
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
@@ -335,7 +379,9 @@ class _HadamardINT4:
         rng = np.random.RandomState(42)
         signs = rng.choice([-1.0, 1.0], size=padded_len).astype(np.float32)
         result = ifwht(rotated, normalize=True) * signs
-        return result[:orig_n].reshape(metadata.get("original_shape", (orig_n,)))
+        out = result[:orig_n].reshape(metadata.get("original_shape", (orig_n,)))
+        was_bf16 = metadata.get(_BF16_FLAG, False)
+        return _bf16_denormalize(out, was_bf16)
 
 
 class _SparsityINT4:
@@ -343,7 +389,8 @@ class _SparsityINT4:
     category = "sparsity_quant"
 
     def compress(self, tensor: np.ndarray, group_size: int = 32) -> Tuple[bytes, dict]:
-        flat = tensor.ravel().astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        flat = tensor_f32.ravel()
         n = len(flat)
         padded_n = int(math.ceil(n / 4) * 4)
         padded = np.zeros(padded_n, dtype=np.float32)
@@ -390,6 +437,7 @@ class _SparsityINT4:
             "n_nonzero": n_nonzero,
             "group_size": group_size,
             "compression_ratio": tensor.nbytes / max(len(compressed), 1),
+            _BF16_FLAG: was_bf16,
         }
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
@@ -417,7 +465,9 @@ class _SparsityINT4:
         sparse_vals = sparse_vals[:n_nonzero]
         result = np.zeros(padded_n, dtype=np.float32)
         result[mask] = sparse_vals[: mask.sum()]
-        return result[:orig_n]
+        out = result[:orig_n]
+        was_bf16 = metadata.get(_BF16_FLAG, False)
+        return _bf16_denormalize(out, was_bf16)
 
 
 class _DeltaINT4:
@@ -427,10 +477,10 @@ class _DeltaINT4:
     def compress(
         self, tensor: np.ndarray, reference: Any = None, block_size: int = 32
     ) -> Tuple[bytes, dict]:
-        t = tensor.astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
         if reference is None:
-            reference = np.zeros_like(t)
-        delta = (t - reference.astype(np.float32)).ravel()
+            reference = np.zeros_like(tensor_f32)
+        delta = (tensor_f32 - reference.astype(np.float32)).ravel()
         n = len(delta)
         padded_n = int(math.ceil(n / block_size) * block_size)
         padded = np.zeros(padded_n, dtype=np.float32)
@@ -456,6 +506,7 @@ class _DeltaINT4:
             "padded_n": padded_n,
             "block_size": block_size,
             "compression_ratio": tensor.nbytes / max(len(compressed), 1),
+            _BF16_FLAG: was_bf16,
         }
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
@@ -476,7 +527,9 @@ class _DeltaINT4:
         all_vals[1::2] = hi
         blocks = all_vals.reshape(n_blocks, block_size)
         delta = (blocks * scales[:, np.newaxis]) + bmins[:, np.newaxis]
-        return delta.ravel()[:orig_n]
+        out = delta.ravel()[:orig_n]
+        was_bf16 = metadata.get(_BF16_FLAG, False)
+        return _bf16_denormalize(out, was_bf16)
 
 
 class _SVDCompress:
@@ -510,9 +563,10 @@ class _SVDCompress:
         error_budget: float = 0.01,
         store_factors: bool = False,
     ) -> Tuple[bytes, dict]:
-        # Avoid wasteful copy if already float32 (saves ~70ms on large tensors)
-        t = tensor if tensor.dtype == np.float32 else tensor.astype(np.float32)
-        orig_shape = t.shape
+        # Convert BF16 to float32 for computation, track for output
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        t = tensor_f32
+        orig_shape = tensor.shape
 
         # Handle 1D tensors: reshape to 2D, compress, then restore shape metadata
         if t.ndim == 1:
@@ -549,6 +603,7 @@ class _SVDCompress:
                 "original_shape": orig_shape,
                 "passthrough": True,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
+                _BF16_FLAG: was_bf16,
             }
 
         use_randomized = t.size > 100000
@@ -567,80 +622,77 @@ class _SVDCompress:
                     return U[:, :max_rank], S[:max_rank], Vh[:max_rank, :]
             except (np.linalg.LinAlgError, ValueError):
                 try:
-                    # Fallback to direct SVD
+                    if use_randomized:
+                        return _randomized_svd(matrix, max_rank)
                     U, S, Vh = np.linalg.svd(matrix, full_matrices=False)
                     rank_actual = min(max_rank, len(S))
                     return U[:, :rank_actual], S[:rank_actual], Vh[:rank_actual, :]
                 except (np.linalg.LinAlgError, ValueError):
-                    # Absolute fallback: passthrough as float16
+                    try:
+                        scipy_ok = False
+                        try:
+                            from scipy.sparse.linalg import svds
+
+                            scipy_ok = True
+                        except ImportError:
+                            pass
+                        if scipy_ok and use_randomized:
+                            k_safe = min(max_rank, min(matrix.shape) - 1)
+                            if k_safe > 1:
+                                U, S, Vt = svds(matrix, k=k_safe)
+                                idx = np.argsort(-S)
+                                return U[:, idx], S[idx], Vt[idx, :]
+                    except Exception:
+                        pass
                     data = t.astype(np.float16).tobytes()
                     return data, {
                         "original_shape": orig_shape,
                         "passthrough": True,
-                        "compression_ratio": tensor.nbytes / max(len(data), 1),
+                        "compression_ratio": t.nbytes / max(len(data), 1),
+                        _BF16_FLAG: was_bf16,
                     }
 
         if rank is not None:
             target_rank = min(rank, k)
             target_rank = min(target_rank, k - 1) if k > 1 else 1
+            target_rank = max(target_rank, 1)
             result = _run_svd(t_2d, target_rank)
             if isinstance(result, tuple) and len(result) == 2:
                 # Fallback returned (data, metadata) — passthrough
                 return result
             Us, Ss, Vhs = result
         else:
-            # Auto-rank via error budget — check shape-based cache first
-            cached_rank = self._get_cached_rank(t_2d.shape, error_budget)
+            # Adaptive rank via singular value knee detection
+            # Note: cache is intentionally NOT used for adaptive rank because
+            # different matrices of the same shape can have different optimal ranks
+            # (e.g., attention weights vs FFN weights of the same dimension).
+            cached_rank = None
             if cached_rank is not None:
                 target_rank = cached_rank
-                result = _run_svd(t_2d, target_rank)
-                if isinstance(result, tuple) and len(result) == 2:
-                    return result
-                Us, Ss, Vhs = result
-            elif use_randomized:
-                max_rank = min(k, 256)
-                max_rank = min(max_rank, k - 1) if k > 1 else 1
-                result = _run_svd(t_2d, max_rank)
-                if isinstance(result, tuple) and len(result) == 2:
-                    # Fallback returned (data, metadata) — passthrough
-                    return result
-                Us, Ss, Vhs = result
-                total_energy = np.sum(Ss**2)
-                cum_discard = np.cumsum(Ss[::-1] ** 2)
-                n_discard = int(
-                    np.searchsorted(
-                        cum_discard / max(total_energy, 1e-30),
-                        error_budget,
-                        side="right",
-                    )
-                )
-                target_rank = max(1, len(Ss) - n_discard)
-                Us, Ss, Vhs = (
-                    Us[:, :target_rank],
-                    Ss[:target_rank],
-                    Vhs[:target_rank, :],
-                )
-                # Cache the rank for future same-shape tensors
-                self._set_cached_rank(t_2d.shape, error_budget, target_rank)
             else:
-                result = _run_svd(t_2d, k)
-                if isinstance(result, tuple) and len(result) == 2:
-                    # Fallback returned (data, metadata) — passthrough
-                    return result
-                U, S, Vh = result
-                total_energy = np.sum(S**2)
-                cum_discard = np.cumsum(S[::-1] ** 2)
-                n_discard = int(
-                    np.searchsorted(
-                        cum_discard / max(total_energy, 1e-30),
-                        error_budget,
-                        side="right",
+                # Use adaptive rank estimation with energy threshold from error_budget
+                # error_budget=0.01 -> 99% energy, error_budget=0.001 -> 99.9% energy
+                energy_threshold = max(0.99, 1.0 - error_budget * 5.0)
+                energy_threshold = min(energy_threshold, 0.9999)
+                try:
+                    from spectralstream.compression.adaptive_rank import (
+                        estimate_adaptive_rank,
                     )
-                )
-                target_rank = max(1, k - n_discard)
-                Us, Ss, Vhs = U[:, :target_rank], S[:target_rank], Vh[:target_rank, :]
-                # Cache the rank for future same-shape tensors
+
+                    target_rank = estimate_adaptive_rank(
+                        t_2d,
+                        energy_threshold=energy_threshold,
+                        max_rank=min(k, 256),
+                    )
+                except Exception:
+                    target_rank = max(1, min(k, k // 4))
+                target_rank = max(1, min(target_rank, k - 1) if k > 1 else 1)
                 self._set_cached_rank(t_2d.shape, error_budget, target_rank)
+
+            result = _run_svd(t_2d, target_rank)
+            if isinstance(result, tuple) and len(result) == 2:
+                return result
+            Us, Ss, Vhs = result
 
         target_rank = len(Ss)
         header = struct.pack("<III", m, n, target_rank)
@@ -656,6 +708,7 @@ class _SVDCompress:
             "rank": target_rank,
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(data), 1),
+            _BF16_FLAG: was_bf16,
         }
         if store_factors:
             # Store raw SVD factors as float16 arrays for entangled cascade
@@ -665,12 +718,14 @@ class _SVDCompress:
         return data, metadata
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
+        was_bf16 = metadata.get(_BF16_FLAG, False)
         if metadata.get("passthrough"):
-            return (
+            out = (
                 np.frombuffer(data, dtype=np.float16)
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
+            return _bf16_denormalize(out, was_bf16)
         m, n, rank = struct.unpack_from("<III", data, 0)
         off = 12
         orig_shape = metadata.get("original_shape", (m, n))
@@ -686,7 +741,8 @@ class _SVDCompress:
         recon = (U_r.astype(np.float32) * S_r.astype(np.float32)) @ Vh_r.astype(
             np.float32
         )
-        return recon.reshape(orig_shape)
+        out = recon.reshape(orig_shape)
+        return _bf16_denormalize(out, was_bf16)
 
     @staticmethod
     def _estimate_effective_rank_fast(tensor: np.ndarray, n_samples: int = 20) -> int:
@@ -858,7 +914,8 @@ class _DCTSpectral:
         keep_ratio: Optional[float] = None,
         error_budget: float = 0.01,
     ) -> Tuple[bytes, dict]:
-        t = tensor.astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        t = tensor_f32
         orig_shape = t.shape
         if t.size < 1024:
             data = t.astype(np.float16).tobytes()
@@ -866,6 +923,7 @@ class _DCTSpectral:
                 "original_shape": orig_shape,
                 "passthrough": True,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
+                _BF16_FLAG: was_bf16,
             }
         if keep_ratio is None:
             keep_ratio = max(0.005, error_budget * 10)
@@ -884,6 +942,7 @@ class _DCTSpectral:
                 "ndim": 1,
                 "passthrough": False,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
+                _BF16_FLAG: was_bf16,
             }
             return data, metadata
         if t.ndim == 2:
@@ -908,18 +967,21 @@ class _DCTSpectral:
             "ndim": t.ndim,
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(data), 1),
+            _BF16_FLAG: was_bf16,
         }
         del coeffs, flat
         gc.collect()
         return data, metadata
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
+        was_bf16 = metadata.get(_BF16_FLAG, False)
         if metadata.get("passthrough"):
-            return (
+            out = (
                 np.frombuffer(data, dtype=np.float16)
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
+            return _bf16_denormalize(out, was_bf16)
         n_keep = metadata["n_keep"]
         off = n_keep * 4
         idx = np.frombuffer(data[:off], dtype=np.uint32)
@@ -930,21 +992,26 @@ class _DCTSpectral:
             c = np.zeros(n, dtype=np.float64)
             c[idx] = vals.astype(np.float64)
             recon = idct(c, axis=0)
-            return recon.astype(np.float32).reshape(metadata["original_shape"])
+            out = recon.astype(np.float32).reshape(metadata["original_shape"])
+            return _bf16_denormalize(out, was_bf16)
         n = metadata["n"]
         m = metadata["m"]
         c = np.zeros(n * m, dtype=np.float64)
         c[idx] = vals.astype(np.float64)
         r = idct_2d(c.reshape(n, m))
-        return r.astype(np.float32).reshape(metadata["original_shape"])
+        out = r.astype(np.float32).reshape(metadata["original_shape"])
+        return _bf16_denormalize(out, was_bf16)
 
 
 class _TensorTrain:
     name = "tensor_train"
     category = "tensor_network"
 
-    def compress(self, tensor: np.ndarray, rank: int = 16) -> Tuple[bytes, dict]:
-        t = tensor.astype(np.float32)
+    def compress(
+        self, tensor: np.ndarray, rank: Optional[int] = None
+    ) -> Tuple[bytes, dict]:
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        t = tensor_f32
         orig_shape = t.shape
         if t.size < 2048:
             data = t.astype(np.float16).tobytes()
@@ -952,10 +1019,24 @@ class _TensorTrain:
                 "original_shape": orig_shape,
                 "passthrough": True,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
+                _BF16_FLAG: was_bf16,
             }
         dims = self._factor_4d(t.size)
         reshaped = t.reshape(dims)
         n1, n2, n3, n4 = dims
+        if rank is None:
+            # Adaptive TT-rank: start with rank=2 and binary search for optimal
+            try:
+                from spectralstream.compression.adaptive_rank import (
+                    estimate_adaptive_rank,
+                )
+
+                adaptive = estimate_adaptive_rank(
+                    t, energy_threshold=0.999, max_rank=min(64, min(n1, n2, n3, n4) - 1)
+                )
+                rank = max(2, min(adaptive, 64))
+            except Exception:
+                rank = 16
         r = min(rank, min(n1, n2, n3, n4) - 1)
         r = max(r, 2)
         # Core 1
@@ -990,20 +1071,24 @@ class _TensorTrain:
             "original_shape": orig_shape,
             "dims_4d": dims,
             "core_shapes": core_shapes,
+            "tt_rank_used": r,
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(core_data), 1),
+            _BF16_FLAG: was_bf16,
         }
         del cores, reshaped, inter, U, S, Vt
         gc.collect()
         return core_data, metadata
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
+        was_bf16 = metadata.get(_BF16_FLAG, False)
         if metadata.get("passthrough"):
-            return (
+            out = (
                 np.frombuffer(data, dtype=np.float16)
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
+            return _bf16_denormalize(out, was_bf16)
         dims = metadata["dims_4d"]
         shapes = metadata["core_shapes"]
         cores = []
@@ -1025,7 +1110,8 @@ class _TensorTrain:
         temp = np.tensordot(g1, g2, axes=([1], [0]))
         temp = np.tensordot(temp, g3, axes=([2], [0]))
         temp = np.tensordot(temp, g4, axes=([3], [0]))
-        return temp.reshape(metadata["original_shape"]).astype(np.float32)
+        out = temp.reshape(metadata["original_shape"]).astype(np.float32)
+        return _bf16_denormalize(out, was_bf16)
 
     @staticmethod
     def _factor_4d(n: int):
@@ -1067,7 +1153,8 @@ class _FWHTCompress:
     ) -> Tuple[bytes, dict]:
         if keep_ratio is None:
             keep_ratio = max(0.002, error_budget * 5)
-        t = tensor.ravel().astype(np.float32)
+        tensor_f32, was_bf16 = _bf16_normalize(tensor)
+        t = tensor_f32.ravel()
         n_orig = len(t)
         if n_orig < 1024:
             data = t.astype(np.float16).tobytes()
@@ -1076,6 +1163,7 @@ class _FWHTCompress:
                 "original_shape": tensor.shape,
                 "passthrough": True,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
+                _BF16_FLAG: was_bf16,
             }
         padded_len = next_power_of_two(n_orig)
         padded = np.zeros(padded_len, dtype=np.float32)
@@ -1096,18 +1184,21 @@ class _FWHTCompress:
             "n_keep": n_keep,
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(data), 1),
+            _BF16_FLAG: was_bf16,
         }
         del padded, rotated, signs
         gc.collect()
         return data, metadata
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
+        was_bf16 = metadata.get(_BF16_FLAG, False)
         if metadata.get("passthrough"):
-            return (
+            out = (
                 np.frombuffer(data, dtype=np.float16)
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
+            return _bf16_denormalize(out, was_bf16)
         padded_len = metadata["padded_len"]
         n_keep = metadata["n_keep"]
         n_orig = metadata["n_orig"]
@@ -1120,7 +1211,8 @@ class _FWHTCompress:
         signs = rng.choice([-1.0, 1.0], size=padded_len).astype(np.float32)
         result = ifwht(coeffs, normalize=True)
         result *= signs
-        return result[:n_orig].astype(np.float32).reshape(metadata["original_shape"])
+        out = result[:n_orig].astype(np.float32).reshape(metadata["original_shape"])
+        return _bf16_denormalize(out, was_bf16)
 
 
 METHOD_REGISTRY: Dict[str, Any] = {

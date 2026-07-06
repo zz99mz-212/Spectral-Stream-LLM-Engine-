@@ -1,7 +1,13 @@
-"""Structured matrix approximation methods (BlockDiagonal, Toeplitz, Hankel)."""
+"""Structured matrix approximation methods (BlockDiagonal, Toeplitz, Hankel).
+
+NOTE: Toeplitz/Hankel assume specific matrix structures that real neural
+network weights rarely have. We add structure checks and gracefully fall
+back to passthrough when the structural assumption is violated.
+"""
 
 from __future__ import annotations
 
+import logging
 from typing import Tuple
 
 import numpy as np
@@ -11,6 +17,8 @@ from .structured_decomposition import (
     toeplitz_decompose,
     hankel_decompose,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BlockDiagonal:
@@ -66,18 +74,61 @@ class BlockDiagonal:
 
 
 class Toeplitz:
-    """Toeplitz (constant diagonal) matrix approximation."""
+    """Toeplitz (constant diagonal) matrix approximation.
+
+    Real neural network weights rarely have Toeplitz structure.
+    We check the fit error first: if ||W - Toeplitz(W)|| / ||W|| > 30%,
+    we fall back to float16 passthrough (which is always better than noise).
+    """
 
     name = "toeplitz"
     category = "decomposition"
+    MAX_TOEPLITZ_ERROR = 0.30  # 30% relative error threshold
 
     def compress(self, tensor: np.ndarray) -> Tuple[bytes, dict]:
+        t = np.asarray(tensor, dtype=np.float64)
+        if t.ndim != 2 or min(t.shape) < 4:
+            flat = tensor.ravel().astype(np.float32)
+            return flat.astype(np.float16).tobytes(), {
+                "original_shape": tensor.shape,
+                "shape": tensor.shape,
+                "passthrough": True,
+            }
+        # Check Toeplitz structure fit
+        try:
+            from spectralstream.compression.adaptive_rank import (
+                estimate_toeplitz_fit_error,
+            )
+
+            fit_err = estimate_toeplitz_fit_error(tensor)
+            if fit_err > self.MAX_TOEPLITZ_ERROR:
+                logger.debug(
+                    "Toeplitz fit error %.2f > %.2f threshold — falling back",
+                    fit_err,
+                    self.MAX_TOEPLITZ_ERROR,
+                )
+                flat = tensor.ravel().astype(np.float32)
+                return flat.astype(np.float16).tobytes(), {
+                    "original_shape": tensor.shape,
+                    "shape": tensor.shape,
+                    "passthrough": True,
+                    "toeplitz_fit_error": float(fit_err),
+                }
+        except Exception:
+            pass
         result, ratio, snr = toeplitz_decompose(tensor)
         data = result["w"].tobytes()
         meta = dict(shape=result["shape"], w_shape=list(result["w"].shape))
         return data, meta
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
+        if metadata.get("passthrough"):
+            return (
+                np.frombuffer(data, dtype=np.float16)
+                .copy()
+                .reshape(metadata["shape"])
+                .astype(np.float32)
+            )
         w = np.frombuffer(data, dtype=np.float32)
         m, n = metadata["shape"]
         i = np.arange(m)[:, None]
@@ -87,18 +138,61 @@ class Toeplitz:
 
 
 class Hankel:
-    """Hankel (constant anti-diagonal) matrix approximation."""
+    """Hankel (constant anti-diagonal) matrix approximation.
+
+    Real neural network weights rarely have Hankel structure.
+    We check the fit error first: if ||W - Hankel(W)|| / ||W|| > 30%,
+    we fall back to float16 passthrough.
+    """
 
     name = "hankel"
     category = "decomposition"
+    MAX_HANKEL_ERROR = 0.30  # 30% relative error threshold
 
     def compress(self, tensor: np.ndarray) -> Tuple[bytes, dict]:
+        t = np.asarray(tensor, dtype=np.float64)
+        if t.ndim != 2 or min(t.shape) < 4:
+            flat = tensor.ravel().astype(np.float32)
+            return flat.astype(np.float16).tobytes(), {
+                "original_shape": tensor.shape,
+                "shape": tensor.shape,
+                "passthrough": True,
+            }
+        # Check Hankel structure fit
+        try:
+            from spectralstream.compression.adaptive_rank import (
+                estimate_hankel_fit_error,
+            )
+
+            fit_err = estimate_hankel_fit_error(tensor)
+            if fit_err > self.MAX_HANKEL_ERROR:
+                logger.debug(
+                    "Hankel fit error %.2f > %.2f threshold — falling back",
+                    fit_err,
+                    self.MAX_HANKEL_ERROR,
+                )
+                flat = tensor.ravel().astype(np.float32)
+                return flat.astype(np.float16).tobytes(), {
+                    "original_shape": tensor.shape,
+                    "shape": tensor.shape,
+                    "passthrough": True,
+                    "hankel_fit_error": float(fit_err),
+                }
+        except Exception:
+            pass
         result, ratio, snr = hankel_decompose(tensor)
         data = result["w"].tobytes()
         meta = dict(shape=result["shape"], w_shape=list(result["w"].shape))
         return data, meta
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
+        if metadata.get("passthrough"):
+            return (
+                np.frombuffer(data, dtype=np.float16)
+                .copy()
+                .reshape(metadata["shape"])
+                .astype(np.float32)
+            )
         w = np.frombuffer(data, dtype=np.float32)
         m, n = metadata["shape"]
         i = np.arange(m)[:, None]

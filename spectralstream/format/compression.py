@@ -174,6 +174,16 @@ def _name_to_method_id(name: str) -> int:
     return _DYNAMIC_NAME_TO_ID.get(name, 0)
 
 
+def _guess_dtype(data: bytes) -> np.dtype:
+    """Guess the numpy dtype from raw bytes."""
+    n = len(data)
+    if n % 4 == 0:
+        return np.float32
+    elif n % 2 == 0:
+        return np.uint16  # BF16 stored as uint16
+    return np.float32
+
+
 def _compress_via_engine(
     data: bytes, method_id: int, params: Optional[dict] = None
 ) -> Tuple[bytes, dict]:
@@ -182,7 +192,7 @@ def _compress_via_engine(
     name = _method_id_to_name(method_id)
     if name == "passthrough":
         return data, {}
-    tensor = np.frombuffer(data, dtype=np.float32)
+    tensor = np.frombuffer(data, dtype=_guess_dtype(data))
     inst = _get_engine_method(method_id)
     if inst is not None:
         try:

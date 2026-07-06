@@ -18,6 +18,8 @@ DTYPE_MAP: Dict[str, np.dtype] = {
     "F32": np.float32,
     "F16": np.float16,
     "BF16": np.uint16,
+    "F8_E4M3": np.uint8,
+    "F8_E5M2": np.uint8,
     "I64": np.int64,
     "I32": np.int32,
     "I16": np.int16,
