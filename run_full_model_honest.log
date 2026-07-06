@@ -1,0 +1,58 @@
+[checkpoint] 100/2011 tensors done (100 this run, 45.8s elapsed)
+[checkpoint] 200/2011 tensors done (200 this run, 86.1s elapsed)
+[checkpoint] 300/2011 tensors done (300 this run, 126.8s elapsed)
+[checkpoint] 400/2011 tensors done (400 this run, 173.5s elapsed)
+[checkpoint] 500/2011 tensors done (500 this run, 212.7s elapsed)
+[checkpoint] 600/2011 tensors done (600 this run, 254.8s elapsed)
+[checkpoint] 700/2011 tensors done (700 this run, 298.1s elapsed)
+[checkpoint] 800/2011 tensors done (800 this run, 1383.4s elapsed)
+[checkpoint] 900/2011 tensors done (900 this run, 1675.4s elapsed)
+[checkpoint] 1000/2011 tensors done (1000 this run, 1980.0s elapsed)
+[checkpoint] 1100/2011 tensors done (1100 this run, 2300.7s elapsed)
+[checkpoint] 1200/2011 tensors done (1200 this run, 2537.8s elapsed)
+[checkpoint] 1300/2011 tensors done (1300 this run, 2739.1s elapsed)
+[checkpoint] 1400/2011 tensors done (1400 this run, 2855.1s elapsed)
+[checkpoint] 1500/2011 tensors done (1500 this run, 2911.8s elapsed)
+[checkpoint] 1600/2011 tensors done (1600 this run, 2966.1s elapsed)
+[checkpoint] 1700/2011 tensors done (1700 this run, 3017.5s elapsed)
+[checkpoint] 1800/2011 tensors done (1800 this run, 3067.4s elapsed)
+[checkpoint] 1900/2011 tensors done (1900 this run, 3119.8s elapsed)
+[checkpoint] 2000/2011 tensors done (2000 this run, 3168.5s elapsed)
+[done main pass] 2011/2011 tensors
+[functional] model.audio_tower.layers.0.feed_forward1.ffw_layer_1.linear.weight shape=[4096, 1024] rel_err=5.785584e-03
+[functional] model.audio_tower.layers.3.feed_forward1.ffw_layer_2.linear.weight shape=[1024, 4096] rel_err=6.671964e-03
+[functional] model.audio_tower.layers.8.feed_forward2.ffw_layer_1.linear.weight shape=[4096, 1024] rel_err=5.199033e-03
+[functional] model.language_model.layers.11.self_attn.k_proj.weight shape=[256, 1536] rel_err=1.388523e-02
+[functional] model.language_model.layers.17.self_attn.q_proj.weight shape=[2048, 1536] rel_err=8.550798e-03
+[functional] model.language_model.layers.23.mlp.down_proj.weight shape=[1536, 12288] rel_err=1.053965e-02
+[functional] model.language_model.layers.29.mlp.up_proj.weight shape=[12288, 1536] rel_err=8.143955e-03
+[functional] model.language_model.layers.34.per_layer_projection.weight shape=[1536, 256] rel_err=1.088232e-02
+[functional] model.language_model.layers.9.self_attn.o_proj.weight shape=[1536, 4096] rel_err=8.660629e-03
+[functional] model.vision_tower.encoder.layers.15.self_attn.k_proj.linear.weight shape=[768, 768] rel_err=1.286394e-02
+
+===== HONEST FULL-MODEL COMPRESSION SUMMARY =====
+Tensors processed:        2011
+On-disk file size:        10.247 GB
+FP32-equivalent size:     20.493 GB
+Compressed size:          4.443 GB
+Ratio vs on-disk (BF16):  2.306x
+Ratio vs FP32:            4.613x
+Rel MSE   mean/median/p95/max: 2.491e-05 / 0.000e+00 / 1.066e-04 / 6.755e-04
+Cosine sim mean/median:        0.999988 / 1.000000
+SNR dB    mean/median:         41.92 / 41.08
+Max abs err mean/max:          3.695e-04 / 4.252e-02
+
+Functional error (||Wx-What x||/||Wx||) on sampled matrices:
+  model.audio_tower.layers.0.feed_forward1.ffw_layer_1.linear.weight shape=[4096, 1024]  rel_err=5.785584e-03
+  model.audio_tower.layers.3.feed_forward1.ffw_layer_2.linear.weight shape=[1024, 4096]  rel_err=6.671964e-03
+  model.audio_tower.layers.8.feed_forward2.ffw_layer_1.linear.weight shape=[4096, 1024]  rel_err=5.199033e-03
+  model.language_model.layers.11.self_attn.k_proj.weight       shape=[256, 1536]  rel_err=1.388523e-02
+  model.language_model.layers.17.self_attn.q_proj.weight       shape=[2048, 1536]  rel_err=8.550798e-03
+  model.language_model.layers.23.mlp.down_proj.weight          shape=[1536, 12288]  rel_err=1.053965e-02
+  model.language_model.layers.29.mlp.up_proj.weight            shape=[12288, 1536]  rel_err=8.143955e-03
+  model.language_model.layers.34.per_layer_projection.weight   shape=[1536, 256]  rel_err=1.088232e-02
+  model.language_model.layers.9.self_attn.o_proj.weight        shape=[1536, 4096]  rel_err=8.660629e-03
+  model.vision_tower.encoder.layers.15.self_attn.k_proj.linear.weight shape=[768, 768]  rel_err=1.286394e-02
+
+Wall time: 3213.2s
+Results written to: D:\compression engine\Spectral-Stream-LLM-Engine\run_full_model_honest_results.json

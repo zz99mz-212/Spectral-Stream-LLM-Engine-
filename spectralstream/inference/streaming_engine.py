@@ -35,6 +35,7 @@ import mmap
 import numpy as np
 import os
 import struct
+import sys
 import tempfile
 import threading
 import time
@@ -46,34 +47,34 @@ from typing import Any, Callable, Optional
 
 
 _libc = None
-for _libname in ("libc.so.6", "libc.dylib", "libc.so"):
-    _p = ctypes.util.find_library(_libname)
-    if _p or _libname.startswith("libc.so"):
-        try:
-            _libc = ctypes.CDLL(_libname, use_errno=True)
-            break
-        except OSError:
-            continue
-if _libc is None:
-    _libc = ctypes.CDLL("libc.so.6", use_errno=True)
+if sys.platform != "win32":
+    for _libname in ("libc.so.6", "libc.dylib", "libc.so"):
+        _p = ctypes.util.find_library(_libname)
+        if _p or _libname.startswith("libc.so"):
+            try:
+                _libc = ctypes.CDLL(_libname, use_errno=True)
+                break
+            except OSError:
+                continue
 
-_libc.madvise.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
-_libc.madvise.restype = ctypes.c_int
-_libc.mlock.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
-_libc.mlock.restype = ctypes.c_int
-_libc.munlock.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
-_libc.munlock.restype = ctypes.c_int
-_libc.mmap.argtypes = [
-    ctypes.c_void_p,
-    ctypes.c_size_t,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_int,
-    ctypes.c_size_t,
-]
-_libc.mmap.restype = ctypes.c_void_p
-_libc.munmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
-_libc.munmap.restype = ctypes.c_int
+if _libc is not None:
+    _libc.madvise.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
+    _libc.madvise.restype = ctypes.c_int
+    _libc.mlock.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    _libc.mlock.restype = ctypes.c_int
+    _libc.munlock.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    _libc.munlock.restype = ctypes.c_int
+    _libc.mmap.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_size_t,
+    ]
+    _libc.mmap.restype = ctypes.c_void_p
+    _libc.munmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    _libc.munmap.restype = ctypes.c_int
 
 MADV_NORMAL = 0
 MADV_SEQUENTIAL = 2
@@ -225,6 +226,8 @@ class NUMAAllocator:
     ) -> int:
         if size_bytes <= 0:
             return 0
+        if _libc is None:
+            raise MemoryError("NUMAAllocator requires a POSIX libc (not available on this platform)")
 
         align = HUGEPAGE_SIZE if hugepage and self._hugepage_eligible else 4096
         aligned_size = ((size_bytes + align - 1) // align) * align
@@ -274,6 +277,8 @@ class NUMAAllocator:
         return np.ctypeslib.as_array(arr).reshape(shape)
 
     def allocate_page_aligned_io(self, size_bytes: int) -> tuple[ctypes.Array, int]:
+        if _libc is None:
+            raise MemoryError("NUMAAllocator requires a POSIX libc (not available on this platform)")
         page_size = 4096
         aligned_size = ((size_bytes + page_size - 1) // page_size) * page_size
         addr = _libc.mmap(
@@ -297,6 +302,9 @@ class NUMAAllocator:
         return buf, addr_int
 
     def free_all(self):
+        if _libc is None:
+            self._allocated.clear()
+            return
         for addr, size in self._allocated:
             try:
                 _libc.munlock(ctypes.c_void_p(addr), size)

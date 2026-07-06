@@ -228,6 +228,36 @@ if _HAS_LIBC:
     MPOL_MF_MOVE_ALL = 4
 else:
     _HAS_NUMA = False
+    _libc = None
+    _numa = None
+
+    MADV_WILLNEED = 3
+    MADV_DONTNEED = 4
+    MADV_HUGEPAGE = 14
+    MADV_COLLAPSE = 25
+    MADV_COLD = 20
+    MADV_PAGEOUT = 21
+    MADV_FREE = 8
+    MADV_SEQUENTIAL = 2
+    MADV_RANDOM = 1
+
+    MAP_SHARED = 1
+    MAP_PRIVATE = 2
+    MAP_ANONYMOUS = 0x20
+    MAP_POPULATE = 0x8000
+    MAP_HUGETLB = 0x40000
+    MAP_HUGE_2MB = 21 << 26
+    PROT_READ = 1
+    PROT_WRITE = 2
+    PROT_READ_WRITE = 3
+
+    MPOL_DEFAULT = 0
+    MPOL_PREFERRED = 1
+    MPOL_BIND = 2
+    MPOL_INTERLEAVE = 3
+    MPOL_LOCAL = 4
+    MPOL_MF_MOVE = 2
+    MPOL_MF_MOVE_ALL = 4
 
 _HAS_IOURING = False
 _io_uring_lib = None

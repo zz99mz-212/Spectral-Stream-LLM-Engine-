@@ -46,6 +46,11 @@ from .chunked_compressor import ChunkedCompressor
 from .streaming_pipeline import StreamingCompressionPipeline
 from .dynamic_method_tester import DynamicMethodTester
 from .quantum_cascade import QuantumSuperpositionEngine, CascadeSuperpositionPlan
+from spectralstream.compression.honest_metrics import (
+    dual_ratio,
+    end_to_end_error,
+    serialized_nbytes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -2075,6 +2080,13 @@ class CompressionIntelligenceEngine:
         stacked_data: List[bytes] = []
         stacked_meta: List[dict] = []
         current = tensor.copy()
+        # Running estimates used ONLY for the loop's early-termination
+        # checks below — the values actually reported (total_ratio,
+        # total_error in the returned metadata) are recomputed after the
+        # loop from true serialized bytes and true end-to-end
+        # reconstruction error, never a product of per-stage ratios or a
+        # sum of per-stage errors.
+        cumulative_serialized_bytes = 0
         total_ratio = 1.0
         total_error = 0.0
 
@@ -2094,7 +2106,10 @@ class CompressionIntelligenceEngine:
                 if recon.shape != current.shape:
                     recon = recon.reshape(current.shape)
                 stage_ratio = current.nbytes / max(len(data), 1)
-                total_ratio *= stage_ratio
+                stage_bytes = serialized_nbytes(data) + serialized_nbytes(meta)
+                cumulative_serialized_bytes += stage_bytes
+                # Running estimate for loop control only.
+                total_ratio = tensor.nbytes / max(cumulative_serialized_bytes, 1)
                 var = float(np.var(current))
                 mse = float(np.mean((current.ravel() - recon.ravel()) ** 2))
                 stage_error = mse / var if var > 0 else float(mse)
@@ -2108,7 +2123,10 @@ class CompressionIntelligenceEngine:
                 residual = current.astype(np.float32) - recon.astype(np.float32)
                 current = residual
             except Exception as exc:
-                logger.debug("Cascade stage '%s' failed: %s", mname, exc)
+                logger.error(
+                    "Cascade stage '%s' failed: %s — marking stage failed", mname, exc,
+                    exc_info=True,
+                )
                 continue
 
             if total_ratio >= target_ratio:
@@ -2128,40 +2146,63 @@ class CompressionIntelligenceEngine:
             packed += struct.pack("<I", len(sd))
             packed += sd
 
+        compressed = bytes(packed)
+
+        # TRUE end-to-end ratio: actual serialized bytes of the packed
+        # payload vs. original bytes — never a product of per-stage ratios.
+        achieved_ratio = float(tensor.nbytes) / float(max(len(compressed), 1))
+        baselines = dual_ratio(int(tensor.size), compressed)
+
+        # Compute final quality against original — TRUE end-to-end error via
+        # full reconstruction, never a sum of per-stage normalized errors.
+        try:
+            final_recon = self._reconstruct_from_cascade(
+                stacked_data, stacked_meta, tensor.shape
+            )
+            e2e = end_to_end_error(tensor, final_recon)
+            final_error = e2e.rel_mse
+            extra_metrics = {
+                "cosine_sim": e2e.cosine_sim,
+                "max_abs_error": e2e.max_abs,
+                "snr_db": e2e.snr_db,
+            }
+        except Exception as exc:
+            logger.error(
+                "compress_intelligent: final reconstruction/quality check "
+                "failed: %s — falling back to running error estimate",
+                exc,
+                exc_info=True,
+            )
+            final_error = min(total_error, 1.0)
+            extra_metrics = {}
+
         # Combine cascade metadata
         metadata = {
             "cascade": True,
             "n_stages": len(stacked_data),
             "stages": stacked_meta,
             "stage_lengths": stage_lengths,
-            "total_ratio": total_ratio,
-            "total_error": min(total_error, 1.0),
+            "achieved_ratio": achieved_ratio,
+            "total_ratio": achieved_ratio,
+            "ratio_vs_fp32": baselines["ratio_vs_fp32"],
+            "ratio_vs_bf16": baselines["ratio_vs_bf16"],
+            "achieved_error": final_error,
+            "total_error": final_error,
+            "relative_error": final_error,
             "original_shape": list(tensor.shape),
             "method": "cascade",
+            "target_ratio": float(target_ratio),
+            **extra_metrics,
         }
-
-        compressed = bytes(packed)
-
-        # Compute final quality against original
-        try:
-            final_recon = self._reconstruct_from_cascade(
-                stacked_data, stacked_meta, tensor.shape
-            )
-            metrics = compute_error_metrics(tensor, final_recon)
-            final_error = metrics.get("relative_error", total_error)
-            metadata["relative_error"] = final_error
-        except Exception:
-            final_error = min(total_error, 1.0)
-            metadata["relative_error"] = final_error
 
         logger.info(
             "Cascade result: %d stages, ratio %.1f:1, error %.4f",
             len(stacked_data),
-            total_ratio,
-            metadata["relative_error"],
+            achieved_ratio,
+            final_error,
         )
 
-        return compressed, metadata, total_ratio, metadata["relative_error"]
+        return compressed, metadata, achieved_ratio, final_error
 
     def _reconstruct_from_cascade(
         self,
