@@ -158,17 +158,11 @@ class CompressionRouter:
         nbytes = tensor_or_dict.nbytes if hasattr(tensor_or_dict, "nbytes") else 0
         budget_bytes = self._memory_budget_mb * 1024 * 1024
 
-        if nbytes > budget_bytes:
-            return RouteDecision(
-                mode=RouteMode.STREAMING,
-                use_streaming=True,
-                chunk_size_mb=self._memory_budget_mb,
-                reason=f"tensor too large ({nbytes / 1024**2:.0f} MB > budget)",
-            )
-
         return RouteDecision(
-            mode=RouteMode.FAST_PATH,
-            reason=f"fast path ({nbytes / 1024**2:.0f} MB < budget)",
+            mode=RouteMode.CASCADE,
+            use_cascade=True,
+            use_world_model=True,
+            reason=f"cascade for all sizes ({nbytes / 1024**2:.0f} MB)",
         )
 
     def compress(

@@ -55,8 +55,8 @@ from .tiered_error import (
 logger = logging.getLogger(__name__)
 
 # ── Size thresholds ─────────────────────────────────────────────────────
-_TINY_THRESHOLD = 1024  # bytes — passthrough
-_SMALL_1D = 128 * 1024  # 128 KB — moderate 1D
+_TINY_THRESHOLD = 1  # bytes — only empty tensors
+_SMALL_1D = 2**63  # effectively infinite
 
 
 def _human_size(n: int) -> str:
@@ -522,7 +522,6 @@ class WorldModelCompressor:
         # ── Phase 4: Parallel group-member compression ────────────────
         compressed_results: Dict[str, Tuple[bytes, Dict[str, Any]]] = {}
         phase4_start = time.perf_counter()
-        parallel_timeout = max(30.0, 5.0 * len(groups))
         progress_lock = None
         try:
             from threading import Lock
@@ -537,8 +536,7 @@ class WorldModelCompressor:
         if not quiet:
             print(
                 f"  Parallel phase: {total_parallel} group members "
-                f"across {self._num_workers} workers "
-                f"(timeout={parallel_timeout:.0f}s)"
+                f"across {self._num_workers} workers (no timeout)"
             )
 
         with ThreadPoolExecutor(max_workers=self._num_workers) as pool:
@@ -558,7 +556,7 @@ class WorldModelCompressor:
             for future in as_completed(futures):
                 name = futures[future]
                 try:
-                    data, meta = future.result(timeout=parallel_timeout)
+                    data, meta = future.result()
                     compressed_results[name] = (data, meta)
                 except Exception as exc:
                     logger.warning(
@@ -982,12 +980,7 @@ class WorldModelCompressor:
         if dct is not None:
             try:
                 nbytes = tensor.nbytes
-                if nbytes < 4096:
-                    keep_frac = 0.5
-                elif nbytes < 32768:
-                    keep_frac = 0.3
-                else:
-                    keep_frac = 0.15
+                keep_frac = 0.15
 
                 data, meta = dct.compress(tensor, keep_ratio=keep_frac)
                 recon = dct.decompress(data, meta)

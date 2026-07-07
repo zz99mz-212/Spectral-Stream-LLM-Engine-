@@ -52,6 +52,7 @@ from ._methods import (
     METHOD_REGISTRY,
     _BlockINT4,
     _BlockINT8,
+    _Cascade5Stage,
     _DCTSpectral,
     _DeltaINT4,
     _FWHTCompress,
@@ -134,6 +135,14 @@ from ._io import _CheckpointManager, _SSFIOWriter, _SafetensorsIO
 
 # ── Orchestrator ──────────────────────────────────────────────────────
 from ._orchestrator import CompressionIntelligenceEngine
+
+# ── Five-Stage Cascade ──────────────────────────────────────────────
+from spectralstream.compression.cascade_5stage import (
+    FiveStageCascade,
+    Cascade5StageMethod,
+    compress_cascade,
+    decompress_cascade,
+)
 
 # ── Cascade Learner ──────────────────────────────────────────────────
 from .cascade_learner import CascadeLearner, CascadePattern
@@ -490,6 +499,7 @@ __all__ = [
     "_get_sensitivity",
     "_BlockINT8",
     "_BlockINT4",
+    "_Cascade5Stage",
     "_DCTSpectral",
     "_DeltaINT4",
     "_FWHTCompress",
@@ -558,4 +568,9 @@ __all__ = [
     "select_cascade_pattern",
     "is_within_budget",
     "get_fallback_pattern",
+    # Five-Stage Cascade
+    "FiveStageCascade",
+    "Cascade5StageMethod",
+    "compress_cascade",
+    "decompress_cascade",
 ]

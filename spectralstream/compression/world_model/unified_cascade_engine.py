@@ -555,7 +555,11 @@ class UnifiedCascadeEngine:
                     stage.method_name,
                 )
                 failed_stages.append(
-                    {"index": i, "method": stage.method_name, "reason": "method_not_found"}
+                    {
+                        "index": i,
+                        "method": stage.method_name,
+                        "reason": "method_not_found",
+                    }
                 )
                 all_ok = False
                 continue
@@ -566,7 +570,9 @@ class UnifiedCascadeEngine:
                 if recon.shape != residual.shape:
                     recon = recon.reshape(residual.shape)
 
-                stage_bytes = serialized_nbytes(comp_data) + serialized_nbytes(comp_meta)
+                stage_bytes = serialized_nbytes(comp_data) + serialized_nbytes(
+                    comp_meta
+                )
                 stage_ratio = residual.nbytes / max(stage_bytes, 1)
                 stage_var = float(np.var(residual))
                 stage_mse = float(np.mean((residual.ravel() - recon.ravel()) ** 2))
@@ -1280,7 +1286,7 @@ class UnifiedCascadeEngine:
         target_ratio: float,
     ) -> str:
         """Select best DirectCascadeEngine pattern for tensor type."""
-        if tensor.size == 0 or tensor.nbytes < 512:
+        if tensor.size == 0:
             return "passthrough"
 
         ndim = tensor.ndim

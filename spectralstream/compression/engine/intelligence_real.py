@@ -223,11 +223,7 @@ class UnifiedIntelligenceEngine:
                 pass
         if concentration < 0.3:
             return CompressionStrategy.SPECTRAL_DCT
-        if n_elements <= 65536:
-            return CompressionStrategy.HADAMARD_QUANTIZE
-        if n_elements > 65536:
-            return CompressionStrategy.PRODUCT_QUANTIZE
-        return self.default_strategy
+        return CompressionStrategy.HADAMARD_QUANTIZE
 
     def _compress_spectral_dct(
         self, tensor: np.ndarray, layer_id: int, **kwargs: Any

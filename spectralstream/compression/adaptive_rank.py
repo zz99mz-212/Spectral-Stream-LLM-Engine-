@@ -110,15 +110,10 @@ def estimate_adaptive_rank(
         max_rank = max(2, k // 2)
     compute_k = min(max_rank, k - 1, svd_samples)
     compute_k = max(compute_k, 1)
-    use_randomized = t.size > 100000 and compute_k < k // 2
-
     try:
-        if use_randomized:
-            U, S, Vh = _randomized_svd(t, compute_k, n_oversamples=5, n_iter=1)
-        else:
-            U, S, Vh = np.linalg.svd(t, full_matrices=False)
-            limit = min(max_rank, len(S))
-            S = S[:limit]
+        U, S, Vh = np.linalg.svd(t, full_matrices=False)
+        limit = min(max_rank, len(S))
+        S = S[:limit]
         total_energy = float(np.sum(S**2))
     except np.linalg.LinAlgError:
         return max(1, k // 10)

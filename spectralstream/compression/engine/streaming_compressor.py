@@ -440,11 +440,7 @@ class StreamingCompressor:
         tensor_type = self.engine._classify_by_name(name)
 
         # 1D / small tensors — direct single method
-        if (
-            tensor.ndim <= 1
-            or tensor_type in ("norm", "norm_bias")
-            or tensor.size < 1024
-        ):
+        if tensor.ndim <= 1 or tensor_type in ("norm", "norm_bias"):
             profile = self.engine.profiler.profile_tensor(tensor, name=name)
             methods = self.engine._select_methods(
                 profile, self.config.max_error, self.config.target_ratio

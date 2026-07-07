@@ -229,19 +229,17 @@ class SensitivityAnalyzer:
             p.circulant_score = 1.0 if tensor.shape[0] == tensor.shape[1] else 0.0
 
     def _classify_tensor_type(self, p: TensorProfile, nl: str) -> None:
-        if p.shape[0] > 10000 and p.n_elements > 1_000_000:
-            p.tensor_type = "embedding"
-        elif any(k in nl for k in ("attn", "q_proj", "k_proj", "v_proj", "o_proj")):
+        if any(k in nl for k in ("attn", "q_proj", "k_proj", "v_proj", "o_proj")):
             p.tensor_type = "attention"
         elif any(k in nl for k in ("ffn", "gate", "up_proj", "down_proj", "mlp")):
             p.tensor_type = "ffn"
-        elif p.nbytes < 1024:
+        elif p.tensor_type == "norm":
             p.tensor_type = "norm"
         else:
             p.tensor_type = "weight"
 
     def _recommend_method(self, p: TensorProfile) -> None:
-        if p.nbytes < 1024 or p.tensor_type == "norm":
+        if p.tensor_type == "norm":
             p.recommended_method, p.recommended_bits = "passthrough", 16
         elif p.tensor_type == "embedding":
             p.recommended_method, p.recommended_bits = (

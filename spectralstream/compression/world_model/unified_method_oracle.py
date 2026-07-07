@@ -776,7 +776,7 @@ class UnifiedMethodOracle:
                 bypass_decision=BYPASS_HIGH_CONFIDENCE,
                 stage="fast_bypass",
             )
-        if tensor_type == "bias" or (tensor.ndim <= 1 and tensor.size < 1024):
+        if tensor_type == "bias":
             return MethodSelection(
                 name="passthrough",
                 params={},
@@ -787,7 +787,7 @@ class UnifiedMethodOracle:
                 bypass_decision=BYPASS_HIGH_CONFIDENCE,
                 stage="fast_bypass",
             )
-        if tensor_type == "embedding" and tensor.size >= 100000:
+        if tensor_type == "embedding":
             return MethodSelection(
                 name="svd_compress",
                 params={"rank": min(64, min(tensor.shape) // 4)},

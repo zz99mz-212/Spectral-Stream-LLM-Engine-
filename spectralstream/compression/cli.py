@@ -27,6 +27,7 @@ from spectralstream.compression.engine.world_model import (
     ModelCompressionStats,
 )
 from spectralstream.format.reader import SSFReader
+from spectralstream.compression.honest_metrics import dual_ratio, end_to_end_error
 
 try:
     from spectralstream.compression.cli_dashboard import CompressionDashboard
@@ -712,6 +713,19 @@ def cmd_compress(args: argparse.Namespace) -> None:
 
     engine = CompressionIntelligenceEngine(config=config)
 
+    if args.method:
+        logger.info("Forcing method '%s' for all tensors", args.method)
+        from spectralstream.compression.methods import METHOD_CLASSES
+
+        forced_cls = METHOD_CLASSES.get(args.method)
+        if forced_cls is None:
+            logger.error("Method '%s' not found in registry", args.method)
+            sys.exit(1)
+        forced_instance = forced_cls() if isinstance(forced_cls, type) else forced_cls
+        engine._methods = {args.method: forced_instance}
+        if hasattr(engine, "_discovery") and engine._discovery is not None:
+            engine._discovery._methods = engine._methods
+
     logger.info(
         "Compressing %s → %s (ratio=%.0f, error=%.6f, workers=%d%s)",
         args.model,
@@ -821,6 +835,37 @@ def cmd_compress(args: argparse.Namespace) -> None:
             dt = result.get("time", 0.0)
             tensor_type = result.get("tensor_type", "unknown")
 
+            # ── Honest metrics for World Model path ──
+            honest_metrics_dict: Dict[str, Any] = {}
+            if args.honest_metrics and data:
+                try:
+                    shape_i, dtype_i, offset_i, nbytes_i = tensor_info[name]
+                    original = io.read_tensor(
+                        name, shape_i, dtype_i, offset_i, nbytes_i
+                    )
+                    ratios = dual_ratio(original.size, data)
+                    honest_metrics_dict["ratio_vs_fp32"] = ratios["ratio_vs_fp32"]
+                    honest_metrics_dict["ratio_vs_bf16"] = ratios["ratio_vs_bf16"]
+
+                    method_name = result.get("method", "")
+                    if method_name:
+                        from spectralstream.compression.methods import (
+                            METHOD_CLASSES as _HM_CLS_WM,
+                        )
+
+                        _inst = _HM_CLS_WM.get(method_name)
+                        if _inst is not None:
+                            _inst = _inst() if isinstance(_inst, type) else _inst
+                            if hasattr(_inst, "decompress"):
+                                recon = _inst.decompress(data, meta)
+                                err = end_to_end_error(original, recon)
+                                honest_metrics_dict["rel_mse"] = err.rel_mse
+                                honest_metrics_dict["cosine_sim"] = err.cosine_sim
+                                honest_metrics_dict["max_abs"] = err.max_abs
+                                honest_metrics_dict["snr_db"] = err.snr_db
+                except Exception as _hm_exc:
+                    logger.debug("Honest metrics failed for %s: %s", name, _hm_exc)
+
             # Track pattern from world model results
             wm_pattern = result.get("pattern", result.get("cascade_pattern", "auto"))
             pattern_counts[wm_pattern] = pattern_counts.get(wm_pattern, 0) + 1
@@ -846,6 +891,7 @@ def cmd_compress(args: argparse.Namespace) -> None:
                     "shape": meta.get(
                         "original_shape", tensor_info.get(name, ((),))[0]
                     ),
+                    "honest_metrics": honest_metrics_dict,
                 }
             )
             ct = _make_compressed_tensor(
@@ -860,6 +906,7 @@ def cmd_compress(args: argparse.Namespace) -> None:
                 tensor_dtype=meta.get("original_dtype", "float32"),
                 dt=dt,
             )
+            ct.params["honest_metrics"] = honest_metrics_dict
             compressed_tensors.append((name, ct))
 
         if args.output:
@@ -1127,6 +1174,29 @@ def cmd_compress(args: argparse.Namespace) -> None:
                     error_val,
                 )
 
+            # ── Five-Stage Cascade for high-ratio compression (>= 100x) ──
+            elif (
+                (args.target_ratio >= 100 or args.raptor_mode)
+                and not args.pattern
+                and not args.cascade
+                and not args.cascade_mode
+                and not args.auto
+            ):
+                data, meta, ratio_val, error_val = engine.compress(
+                    tensor,
+                    target_ratio=args.target_ratio,
+                    max_error=args.max_error,
+                    name=name,
+                    use_cascade=True,
+                    use_5stage=True,
+                )
+                logger.debug(
+                    "  %s: 5-stage cascade → ratio=%.1fx error=%.6f",
+                    name,
+                    ratio_val,
+                    error_val,
+                )
+
             elif args.quick and not mode_names:
                 profile = engine.profiler.profile_tensor(tensor, name=name)
                 eb = engine.allocator.allocate(
@@ -1196,6 +1266,34 @@ def cmd_compress(args: argparse.Namespace) -> None:
                 computation_time=dt,
             )
 
+            # ── Honest metrics (byte-exact ratio and end-to-end error) ──
+            honest_metrics_dict: Dict[str, Any] = {}
+            if args.honest_metrics and data is not None:
+                try:
+                    ratios = dual_ratio(tensor.size, data)
+                    honest_metrics_dict["ratio_vs_fp32"] = ratios["ratio_vs_fp32"]
+                    honest_metrics_dict["ratio_vs_bf16"] = ratios["ratio_vs_bf16"]
+
+                    method_name = meta.get("method", "")
+                    if method_name:
+                        from spectralstream.compression.methods import (
+                            METHOD_CLASSES as _HM_CLS,
+                        )
+
+                        _inst = _HM_CLS.get(method_name)
+                        if _inst is not None:
+                            _inst = _inst() if isinstance(_inst, type) else _inst
+                            if hasattr(_inst, "decompress"):
+                                recon = _inst.decompress(data, meta)
+                                err = end_to_end_error(tensor, recon)
+                                honest_metrics_dict["rel_mse"] = err.rel_mse
+                                honest_metrics_dict["cosine_sim"] = err.cosine_sim
+                                honest_metrics_dict["max_abs"] = err.max_abs
+                                honest_metrics_dict["snr_db"] = err.snr_db
+                except Exception as _hm_exc:
+                    logger.debug("Honest metrics failed for %s: %s", name, _hm_exc)
+            ct.params["honest_metrics"] = honest_metrics_dict
+
             # Track per-tensor-type method distribution for --show-methods
             tensor_type = "unknown"
             if "embed" in name.lower():
@@ -1234,6 +1332,7 @@ def cmd_compress(args: argparse.Namespace) -> None:
                     "size": len(ct.data),
                     "raw_data": ct.data,
                     "tensor_type": tensor_type,
+                    "honest_metrics": honest_metrics_dict,
                 }
             )
             compressed_tensors.append((name, ct))
@@ -1284,6 +1383,46 @@ def cmd_compress(args: argparse.Namespace) -> None:
     logger.info("  Overall ratio: %.1fx", overall_ratio)
     logger.info("  Time: %.2fs", elapsed)
     logger.info("  Failures: %d/%d", len(failures), total)
+
+    # ── Honest metrics summary ──
+    if args.honest_metrics:
+        hm_fp32 = [
+            c.get("honest_metrics", {}).get("ratio_vs_fp32", 0)
+            for c in compressed
+            if c.get("honest_metrics")
+        ]
+        hm_bf16 = [
+            c.get("honest_metrics", {}).get("ratio_vs_bf16", 0)
+            for c in compressed
+            if c.get("honest_metrics")
+        ]
+        hm_mse = [
+            c.get("honest_metrics", {}).get("rel_mse", 0)
+            for c in compressed
+            if c.get("honest_metrics")
+        ]
+        hm_cos = [
+            c.get("honest_metrics", {}).get("cosine_sim", 0)
+            for c in compressed
+            if c.get("honest_metrics")
+        ]
+        hm_snr = [
+            c.get("honest_metrics", {}).get("snr_db", 0)
+            for c in compressed
+            if c.get("honest_metrics")
+        ]
+        if hm_fp32:
+            logger.info("  Honest ratio (vs FP32): avg %.1fx", float(np.mean(hm_fp32)))
+        if hm_bf16:
+            logger.info("  Honest ratio (vs BF16): avg %.1fx", float(np.mean(hm_bf16)))
+        if hm_mse:
+            logger.info("  Honest rel_mse: avg %.6f", float(np.mean(hm_mse)))
+        if hm_cos:
+            logger.info("  Honest cosine_sim: avg %.6f", float(np.mean(hm_cos)))
+        if hm_snr:
+            s = [x for x in hm_snr if x not in (float("inf"), float("-inf"))]
+            if s:
+                logger.info("  Honest SNR: avg %.1f dB", float(np.mean(s)))
 
     # --- Show method distribution by tensor type (--show-methods) ---
     if args.show_methods and tensor_type_methods:
@@ -1339,6 +1478,24 @@ def cmd_compress(args: argparse.Namespace) -> None:
             _save_certificate(cert, base, cert_formats, args.output_dir)
         except Exception as e:
             logger.error("Failed to generate certificate: %s", e)
+
+    # ── Honest metrics report ──
+    if args.honest_report:
+        hm_report_data = {
+            "model": args.model,
+            "output": args.output,
+            "tensors": [
+                {
+                    "name": c["name"],
+                    "method": c["method"],
+                    "shape": list(c.get("shape", [])),
+                    "honest_metrics": c.get("honest_metrics", {}),
+                }
+                for c in compressed
+                if c.get("honest_metrics")
+            ],
+        }
+        _write_report(hm_report_data, args.honest_report)
 
     if args.output_report:
         report = {
@@ -1554,7 +1711,13 @@ def cmd_profile(args: argparse.Namespace) -> None:
 
     t_start = time.perf_counter()
     tensor_profiles: Dict[str, Any] = {}
-    for name, (shape, dtype_str, offset, nbytes) in tensor_info.items():
+    tensors_to_profile = list(tensor_info.items())
+    if args.quick:
+        tensors_to_profile = tensors_to_profile[:20]
+        logger.info(
+            "Quick mode: profiling first %d tensors only", len(tensors_to_profile)
+        )
+    for name, (shape, dtype_str, offset, nbytes) in tensors_to_profile:
         tensor = io.read_tensor(name, shape, dtype_str, offset, nbytes)
         profile = engine.profiler.profile_tensor(tensor, name=name)
         tensor_profiles[name] = profile
@@ -2781,6 +2944,37 @@ Examples:
         action="store_true",
         help="Test compression on first 100 tensors only (no output file written)",
     )
+    cp.add_argument(
+        "--no-limit",
+        action="store_true",
+        default=False,
+        help="Disable all tensor size limits — attempt every method on every tensor regardless of size",
+    )
+    cp.add_argument(
+        "--method",
+        type=str,
+        default=None,
+        help="Force specific compression method for all tensors (e.g. block_int8, cascade_5stage)",
+    )
+    cp.add_argument(
+        "--honest-metrics",
+        "--hm",
+        action="store_true",
+        default=True,
+        help="Compute honest byte-exact dual-ratio and end-to-end error metrics (default: True)",
+    )
+    cp.add_argument(
+        "--no-honest-metrics",
+        dest="honest_metrics",
+        action="store_false",
+        help="Disable honest metrics computation",
+    )
+    cp.add_argument(
+        "--honest-report",
+        type=str,
+        default="",
+        help="Save per-tensor honest metrics report to JSON file",
+    )
 
     # list-methods
     lm = sub.add_parser("list-methods", help="List all registered compression methods")
@@ -2818,8 +3012,14 @@ Examples:
     pr.add_argument(
         "--max-samples",
         type=int,
-        default=100000,
-        help="Max elements to sample per tensor (default: 100000)",
+        default=0,
+        help="Max elements to sample per tensor (0 = no limit)",
+    )
+    pr.add_argument(
+        "--quick",
+        action="store_true",
+        default=False,
+        help="Quick profile: sample first 20 tensors only",
     )
     pr.add_argument(
         "--output", type=str, default="", help="Save profile report to file"

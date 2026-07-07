@@ -13,6 +13,13 @@ from spectralstream.core.math_primitives import (
     dct_2d,
     idct_2d,
 )
+from spectralstream.compression._dtype_utils import (
+    detect_storage_dtype,
+    convert_to_storage,
+    convert_from_storage,
+    encode_dtype_code,
+    decode_dtype_code,
+)
 
 
 def _serialize(arr: np.ndarray) -> bytes:
@@ -31,6 +38,8 @@ class NTTTransform:
         keep_fraction: float | None = None,
         target_energy: float = 0.99,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         if orig.ndim == 1:
             orig = orig.reshape(1, -1)
@@ -43,24 +52,30 @@ class NTTTransform:
         k = max(1, int(kf * flat.size))
         idx = np.argpartition(np.abs(flat), -k)[-k:]
         meta = dict(
-            shape=orig.shape, keep_fraction=kf, target_energy=target_energy, n_kept=k
+            shape=orig.shape,
+            keep_fraction=kf,
+            target_energy=target_energy,
+            n_kept=k,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", *orig.shape)
             + idx.astype(np.int32).tobytes()
-            + flat[idx].astype(np.float16).tobytes()
+            + convert_to_storage(flat[idx], storage_dtype).tobytes()
         )
         return data, meta
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         m, n = metadata["shape"]
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         k = metadata["n_kept"]
         pos = struct.calcsize("<ii")
         idx = np.frombuffer(data[pos : pos + k * 4], dtype=np.int32).copy().astype(int)
         pos += k * 4
-        vals = np.frombuffer(data[pos : pos + k * 2], dtype=np.float16).astype(
-            np.float64
-        )
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + k * es], dtype=sd), sd
+        ).astype(np.float64)
         coeffs = np.zeros(m * n, dtype=np.float64)
         coeffs[idx] = vals
         return idct_2d(coeffs.reshape(m, n)).astype(np.float32)
@@ -120,6 +135,8 @@ class Chebyshev:
     category = "spectral"
 
     def compress(self, tensor: np.ndarray, n_coeffs: int = 32) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         if orig.ndim == 1:
             orig = orig.reshape(1, -1)
@@ -147,11 +164,13 @@ class Chebyshev:
         mask_2d = np.abs(A) > threshold * 0.1
         a_idx = np.argwhere(mask_2d)
         a_vals = A[mask_2d]
-        meta = dict(shape=(m, n), n_coeffs=n_c, n_kept=len(a_vals))
+        meta = dict(
+            shape=(m, n), n_coeffs=n_c, n_kept=len(a_vals), _storage_dtype=sd_code
+        )
         data = (
             struct.pack("<ii", m, n)
             + a_idx.astype(np.int32).ravel().tobytes()
-            + a_vals.astype(np.float16).tobytes()
+            + convert_to_storage(a_vals, storage_dtype).tobytes()
         )
         del A, flat, T_x, T_y
         gc.collect()
@@ -161,6 +180,8 @@ class Chebyshev:
         m, n = metadata["shape"]
         n_c = metadata["n_coeffs"]
         n_kept = metadata["n_kept"]
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         if n_kept == 0:
             return np.zeros((m, n), dtype=np.float32)
         pos = struct.calcsize("<ii")
@@ -171,9 +192,9 @@ class Chebyshev:
             .astype(np.intp)
         )
         pos += n_kept * 8
-        a_vals = np.frombuffer(data[pos : pos + n_kept * 2], dtype=np.float16).astype(
-            np.float64
-        )
+        a_vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + n_kept * es], dtype=sd), sd
+        ).astype(np.float64)
         x = np.linspace(-1, 1, n)
         y = np.linspace(-1, 1, m)
         T_x = np.zeros((n_c, n))
@@ -204,6 +225,8 @@ class Winograd:
     category = "spectral"
 
     def compress(self, tensor: np.ndarray, block_size: int = 4) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         if orig.ndim == 1:
             orig = orig.reshape(1, -1)
@@ -238,18 +261,22 @@ class Winograd:
         j_positions = np.arange(n_cols, dtype=np.int32) * stride
         i_grid, j_grid = np.meshgrid(i_positions, j_positions, indexing="ij")
 
-        meta = dict(shape=(m, n), block_size=bs, n_blocks=n_blocks)
+        meta = dict(
+            shape=(m, n), block_size=bs, n_blocks=n_blocks, _storage_dtype=sd_code
+        )
         data = struct.pack("<ii", m, n) + struct.pack("<i", n_blocks)
         data += i_grid.ravel().tobytes()
         data += j_grid.ravel().tobytes()
         data += struct.pack("<i", k)
         data += idx.astype(np.int32).tobytes()
-        data += vals.astype(np.float16).tobytes()
+        data += convert_to_storage(vals, storage_dtype).tobytes()
         return data, meta
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         m, n = metadata["shape"]
         bs = metadata["block_size"]
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         pos = struct.calcsize("<ii")
         n_blocks = struct.unpack_from("<i", data, pos)[0]
         pos += 4
@@ -270,8 +297,8 @@ class Winograd:
         idx = idx.reshape(n_blocks, k)
         pos += n_blocks * k * 4
 
-        vals = np.frombuffer(
-            data[pos : pos + n_blocks * k * 2], dtype=np.float16
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + n_blocks * k * es], dtype=sd), sd
         ).astype(np.float64)
         vals = vals.reshape(n_blocks, k)
 

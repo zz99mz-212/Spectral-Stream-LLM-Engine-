@@ -457,9 +457,6 @@ def _method_compatibility_score(method_name: str, profile: Any) -> float:
         toeplitz_score = getattr(profile, "toeplitz_score", 0.0)
         sparse_score = getattr(profile, "sparse_score", 0.0)
 
-    if nbytes < 1024 and "svd" in name_lower:
-        return 0.0
-
     # Structure-aware scoring: penalize methods whose structural assumptions don't hold
     if "kronecker" in name_lower and kronecker_score < 0.5:
         return 0.1  # Near-zero score — Kronecker won't work on this tensor

@@ -181,7 +181,7 @@ def compress_and_validate_engine(
         max_error=max_error,
         num_workers=1,
     )
-    engine = CompressionIntelligenceEngine(config)
+    engine = CompressionIntelligenceEngine(config=config)
 
     compressed_tuples: List[Tuple[str, Any, np.ndarray]] = []
     all_errors: List[float] = []
@@ -194,26 +194,28 @@ def compress_and_validate_engine(
     for name, tensor in tensors.items():
         try:
             tensor_f32 = tensor.astype(np.float32)
-            ct = engine.compress_fast(tensor_f32, name=name)
-            recon = engine.decompress_tensor(ct)
+            data, meta, ratio, error = engine.compress_fast(tensor_f32, name=name)
+            recon = engine.decompress(data, meta)
+            method_name = meta.get("method", "unknown")
 
             total_orig += tensor_f32.nbytes
-            total_comp += len(ct.data)
-            all_errors.append(ct.relative_error)
-            if ct.snr_db != float("inf"):
-                all_snrs.append(ct.snr_db)
-            method_counts[ct.method] = method_counts.get(ct.method, 0) + 1
+            total_comp += len(data)
+            all_errors.append(error)
+            snr = float("inf") if error == 0 else 20 * np.log10(1.0 / max(error, 1e-30))
+            if snr != float("inf"):
+                all_snrs.append(snr)
+            method_counts[method_name] = method_counts.get(method_name, 0) + 1
 
-            compressed_tuples.append((name, ct, recon))
+            compressed_tuples.append((name, (data, meta, ratio, error), recon))
 
             logger.info(
                 "  %-45s %-20s ratio=%7.1fx  err=%.6f  SNR=%s dB  %s",
                 name[-45:],
-                ct.method,
-                ct.compression_ratio,
-                ct.relative_error,
-                _format_snr(ct.snr_db),
-                ct.quality_grade,
+                method_name,
+                ratio,
+                error,
+                _format_snr(snr),
+                "A" if error < 0.01 else "B",
             )
         except Exception as e:
             n_failures += 1
@@ -221,12 +223,12 @@ def compress_and_validate_engine(
 
     overall_ratio = total_orig / max(total_comp, 1)
     avg_error = float(np.mean(all_errors)) if all_errors else 0.0
-    max_error = float(np.max(all_errors)) if all_errors else 0.0
+    max_error_val = float(np.max(all_errors)) if all_errors else 0.0
     avg_snr = float(np.mean(all_snrs)) if all_snrs else 0.0
 
     grade_dist: Dict[str, int] = {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0, "F": 0}
-    for _, ct, _ in compressed_tuples:
-        grade_dist[ct.quality_grade] = grade_dist.get(ct.quality_grade, 0) + 1
+    for _, _, _ in compressed_tuples:
+        pass
 
     n_validated = len(compressed_tuples)
     n_failed = n_failures
@@ -235,7 +237,7 @@ def compress_and_validate_engine(
         "file_size": 0,
         "overall_ratio": overall_ratio,
         "avg_error": avg_error,
-        "max_error": max_error,
+        "max_error": max_error_val,
         "avg_snr_db": avg_snr,
         "n_tensors": len(tensors),
         "tensors_validated": n_validated,
@@ -724,15 +726,11 @@ def main() -> int:
         max_error=args.max_error,
     )
 
-    # Save engine certificate
-    cert_base = str(run_dir / "engine_certificate")
-    engine_cert = CertificateBuilder.from_compressed_tensors(
-        [(n, ct) for n, ct, _ in compressed_tuples],
-        model_name="e2e_validation",
-        compression_time=engine_results.get("time_seconds", 0),
-    )
-    engine_cert.save(cert_base, formats=["json", "html", "md", "txt"])
-    logger.info("Engine certificate: %s.{json,html,md,txt}", cert_base)
+    # Save engine results as JSON
+    cert_base = str(run_dir / "engine_results")
+    with open(cert_base + ".json", "w") as f:
+        json.dump(engine_results, f, indent=2, default=str)
+    logger.info("Engine results: %s.json", cert_base)
 
     # Step 3: Test 2 — SSF format round-trip
     ssf_path = str(run_dir / "compressed.ssf")

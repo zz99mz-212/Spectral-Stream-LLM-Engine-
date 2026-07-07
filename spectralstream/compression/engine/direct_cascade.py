@@ -379,7 +379,7 @@ class DirectCascadeEngine:
         bool
             True if compression is worthwhile, False for passthrough.
         """
-        return tensor.nbytes >= 1024  # >= 1KB → compress
+        return tensor.nbytes >= 1
 
     # ── Stage Execution ──────────────────────────────────────────────────
 
@@ -490,7 +490,7 @@ class DirectCascadeEngine:
             return "1d_aggressive" if effective_target > 100 else "1d_lightning"
 
         # ── Tiny tensors: skip ─────────────────────────────────────────
-        if tensor.nbytes < 1024:
+        if tensor.nbytes < 1:
             return "passthrough"
 
         # ── Embeddings: SVD-only ───────────────────────────────────────
@@ -816,13 +816,6 @@ class DirectCascadeEngine:
                 orig_size,
                 entropy_post_process,
             )
-
-        # Skip tiny tensors — cascade is pointless
-        # Note: 1D tensors are now allowed through (they use 1D-optimized
-        # patterns like "1d_lightning" / "1d_aggressive" which apply DCT
-        # directly without requiring 2D methods like SVD).
-        if original.size < 256:
-            return None
 
         import gc as _gc
 

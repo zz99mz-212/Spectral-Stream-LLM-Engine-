@@ -78,9 +78,8 @@ def test_compression(model_path: str, output_path: str) -> dict:
     print(f"Testing compression: {model_path} -> {output_path}")
 
     config = CompressionConfig(target_ratio=500.0, max_error=0.01, num_workers=2)
-    engine = CompressionIntelligenceEngine(config)
+    engine = CompressionIntelligenceEngine(config=config)
 
-    # Use CLI-style: scan, profile, allocate, compress, write
     from spectralstream.compression.engine._io import _SafetensorsIO
 
     io = _SafetensorsIO()
@@ -89,34 +88,25 @@ def test_compression(model_path: str, output_path: str) -> dict:
     compressed = []
     for name, (shape, dt, off, nb) in tensor_info.items():
         tensor = io.read(model_path, shape, dt, off, nb)
-        profile = engine.profiler.profile_tensor(tensor, name=name)
-        eb = engine.allocator.allocate(
-            {name: profile}, config.target_ratio, config.max_error
+        data, meta, ratio, error = engine.compress(
+            tensor,
+            target_ratio=config.target_ratio,
+            max_error=config.max_error,
+            name=name,
         )
-        methods = engine.selector.select(
-            profile,
-            eb.get(name, config.max_error),
-            config.target_ratio,
-            config.max_candidate_methods,
-        )
-        ct = engine.compress_tensor_with_validation(
-            tensor, profile, methods, eb.get(name, config.max_error)
-        )
-        compressed.append(ct)
+        compressed.append((data, meta, ratio, error, tensor.shape))
 
-    total_orig = sum(int(np.prod(c.original_shape)) * 4 for c in compressed)
-    total_comp = sum(len(c.data) for c in compressed)
+    total_orig = sum(int(np.prod(s)) * 4 for _, _, _, _, s in compressed)
+    total_comp = sum(len(d) for d, _, _, _, _ in compressed)
     overall_ratio = total_orig / max(total_comp, 1)
-    errors = [c.relative_error for c in compressed if c.relative_error > 0]
+    errors = [e for _, _, _, e, _ in compressed if e > 0]
     avg_error = float(np.mean(errors)) if errors else 0.0
-    max_error = float(max(errors)) if errors else 0.0
 
-    # Write SSF file
     with SSFWriter(output_path, metadata={"model_name": "test_model"}) as writer:
-        for ct in compressed:
-            data_tensor = np.frombuffer(ct.data, dtype=np.int8)
+        for i, (data, meta, ratio, error, shape) in enumerate(compressed):
+            data_tensor = np.frombuffer(data, dtype=np.int8)
             writer.add_tensor(
-                name=f"tensor_{compressed.index(ct)}",
+                name=f"tensor_{i}",
                 tensor=data_tensor,
                 method=350,
             )
@@ -124,7 +114,6 @@ def test_compression(model_path: str, output_path: str) -> dict:
 
     print(f"  Ratio:       {overall_ratio:.1f}x")
     print(f"  Avg Error:   {avg_error:.6f}")
-    print(f"  Max Error:   {max_error:.6f}")
     print(f"  Tensors:     {len(compressed)}")
     print(f"  Output:      {os.path.exists(output_path)}")
 
@@ -132,7 +121,7 @@ def test_compression(model_path: str, output_path: str) -> dict:
     return {
         "ratio": overall_ratio,
         "avg_error": avg_error,
-        "max_error": max_error,
+        "max_error": max(errors) if errors else 0.0,
         "n_tensors": len(compressed),
     }
 
@@ -154,7 +143,7 @@ def test_decompression(ssf_path: str) -> dict:
 def test_roundtrip_full(model_path: str, output_path: str) -> dict:
     """Full roundtrip: compress, validate."""
     config = CompressionConfig(target_ratio=500.0, max_error=0.01, num_workers=2)
-    engine = CompressionIntelligenceEngine(config)
+    engine = CompressionIntelligenceEngine(config=config)
     from spectralstream.compression.engine._io import _SafetensorsIO
 
     io = _SafetensorsIO()
@@ -163,26 +152,19 @@ def test_roundtrip_full(model_path: str, output_path: str) -> dict:
     compressed = []
     for name, (shape, dt, off, nb) in tensor_info.items():
         tensor = io.read(model_path, shape, dt, off, nb)
-        profile = engine.profiler.profile_tensor(tensor, name=name)
-        eb = engine.allocator.allocate(
-            {name: profile}, config.target_ratio, config.max_error
+        data, meta, ratio, error = engine.compress(
+            tensor,
+            target_ratio=config.target_ratio,
+            max_error=config.max_error,
+            name=name,
         )
-        methods = engine.selector.select(
-            profile,
-            eb.get(name, config.max_error),
-            config.target_ratio,
-            config.max_candidate_methods,
-        )
-        ct = engine.compress_tensor_with_validation(
-            tensor, profile, methods, eb.get(name, config.max_error)
-        )
-        compressed.append(ct)
+        compressed.append((data, meta, ratio, error, tensor.shape))
 
     with SSFWriter(output_path, metadata={"model_name": "test"}) as writer:
-        for i, ct in enumerate(compressed):
+        for i, (data, meta, ratio, error, shape) in enumerate(compressed):
             writer.add_tensor(
                 name=f"t_{i}",
-                tensor=np.frombuffer(ct.data, dtype=np.int8),
+                tensor=np.frombuffer(data, dtype=np.int8),
                 method=350,
             )
         writer.finalize()
@@ -191,9 +173,9 @@ def test_roundtrip_full(model_path: str, output_path: str) -> dict:
     valid = reader.verify()
     reader.close()
 
-    errors = [c.relative_error for c in compressed if c.relative_error > 0]
-    total_orig = sum(int(np.prod(c.original_shape)) * 4 for c in compressed)
-    total_comp = sum(len(c.data) for c in compressed)
+    errors = [e for _, _, _, e, _ in compressed if e > 0]
+    total_orig = sum(int(np.prod(s)) * 4 for _, _, _, _, s in compressed)
+    total_comp = sum(len(d) for d, _, _, _, _ in compressed)
     return {
         "overall_ratio": total_orig / max(total_comp, 1),
         "avg_error": float(np.mean(errors)) if errors else 0.0,
@@ -221,7 +203,6 @@ def main():
         print("E2E TEST RESULTS")
         print(json.dumps(results, indent=2, default=str))
 
-        # Note: synthetic model ratio limited by overhead; production achieves 500:1+
         targets_met = all(
             [
                 results["compression"]["ratio"] >= 1.0,

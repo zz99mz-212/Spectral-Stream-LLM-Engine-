@@ -26,6 +26,13 @@ from spectralstream.core.math_primitives import (
     float32_to_bfloat16,
     is_bfloat16,
 )
+from spectralstream.compression._dtype_utils import (
+    detect_storage_dtype,
+    convert_to_storage,
+    convert_from_storage,
+    encode_dtype_code,
+    decode_dtype_code,
+)
 
 # Metadata key used to flag BF16 inputs.
 _BF16_FLAG = "_input_was_bf16"
@@ -274,15 +281,21 @@ class _HadamardINT8:
         signs = rng.choice([-1.0, 1.0], size=padded_len).astype(np.float32)
         rotated = fwht(padded * signs, normalize=True)
         n_blocks = (padded_len + block_size - 1) // block_size
+        total = n_blocks * block_size
+        if total > padded_len:
+            rotated_pad = np.zeros(total, dtype=np.float32)
+            rotated_pad[:padded_len] = rotated
+        else:
+            rotated_pad = rotated[:total]
+        blocks = rotated_pad.reshape(n_blocks, block_size)
+        amax = np.max(np.abs(blocks), axis=1)
+        scales = np.where(amax > 1e-8, amax / 127.0, 1.0)
+        quantized = np.clip(np.round(blocks / scales[:, np.newaxis]), -128, 127).astype(
+            np.int8
+        )
         buf = struct.pack("<II", n_orig, padded_len)
-        for b in range(n_blocks):
-            start = b * block_size
-            end = min(start + block_size, padded_len)
-            block = rotated[start:end]
-            amax = float(np.max(np.abs(block)))
-            scale = amax / 127.0 if amax > 1e-8 else 1.0
-            quantized = np.clip(np.round(block / scale), -128, 127).astype(np.int8)
-            buf += struct.pack("<f", scale) + quantized.tobytes()
+        buf += scales.astype(np.float32).tobytes()
+        buf += quantized.tobytes()
         compressed = bytes(buf)
         return compressed, {
             "n_elements": n_orig,
@@ -296,20 +309,14 @@ class _HadamardINT8:
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         orig_n, padded_len = struct.unpack_from("<II", data, 0)
         block_size = metadata.get("block_size", 128)
-        pos = 8
-        rotated = np.zeros(padded_len, dtype=np.float32)
         n_blocks = (padded_len + block_size - 1) // block_size
-        for b in range(n_blocks):
-            if pos + 4 > len(data):
-                break
-            scale = struct.unpack_from("<f", data, pos)[0]
-            pos += 4
-            count = min(block_size, padded_len - b * block_size)
-            raw = np.frombuffer(data[pos : pos + count], dtype=np.int8)
-            pos += count
-            rotated[b * block_size : b * block_size + len(raw)] = (
-                raw.astype(np.float32) * scale
-            )
+        total = n_blocks * block_size
+        pos = 8
+        scales = np.frombuffer(data[pos : pos + n_blocks * 4], dtype=np.float32)
+        pos += n_blocks * 4
+        quantized = np.frombuffer(data[pos : pos + total], dtype=np.int8)
+        blocks = quantized.astype(np.float32).reshape(n_blocks, block_size)
+        rotated = (blocks * scales[:, np.newaxis]).ravel()[:padded_len]
         rng = np.random.RandomState(42)
         signs = rng.choice([-1.0, 1.0], size=padded_len).astype(np.float32)
         result = ifwht(rotated, normalize=True) * signs
@@ -563,6 +570,8 @@ class _SVDCompress:
         error_budget: float = 0.01,
         store_factors: bool = False,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        storage_dtype_code = int(encode_dtype_code(storage_dtype))
         # Convert BF16 to float32 for computation, track for output
         tensor_f32, was_bf16 = _bf16_normalize(tensor)
         t = tensor_f32
@@ -596,17 +605,18 @@ class _SVDCompress:
         m, n = t_2d.shape
         k = min(m, n)
 
-        # Small tensors: passthrough as float16
-        if t.size < 1024 or k < 4:
-            data = t.astype(np.float16).tobytes()
+        if k < 4:
+            st = np.dtype("float16") if storage_dtype.itemsize > 2 else storage_dtype
+            data = convert_to_storage(t, st).tobytes()
             return data, {
                 "original_shape": orig_shape,
                 "passthrough": True,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
                 _BF16_FLAG: was_bf16,
+                "_storage_dtype": storage_dtype_code,
             }
 
-        use_randomized = t.size > 100000
+        use_randomized = False
 
         def _run_svd(matrix, max_rank):
             """Run SVD with fallback on non-convergence."""
@@ -644,12 +654,18 @@ class _SVDCompress:
                                 return U[:, idx], S[idx], Vt[idx, :]
                     except Exception:
                         pass
-                    data = t.astype(np.float16).tobytes()
+                    st = (
+                        np.dtype("float16")
+                        if storage_dtype.itemsize > 2
+                        else storage_dtype
+                    )
+                    data = convert_to_storage(t, st).tobytes()
                     return data, {
                         "original_shape": orig_shape,
                         "passthrough": True,
                         "compression_ratio": t.nbytes / max(len(data), 1),
                         _BF16_FLAG: was_bf16,
+                        "_storage_dtype": encode_dtype_code(st),
                     }
 
         if rank is not None:
@@ -696,10 +712,11 @@ class _SVDCompress:
 
         target_rank = len(Ss)
         header = struct.pack("<III", m, n, target_rank)
+        es = storage_dtype.itemsize
         data = header + (
-            Us.astype(np.float16).tobytes()
-            + Ss.astype(np.float16).tobytes()
-            + Vhs.astype(np.float16).tobytes()
+            convert_to_storage(Us, storage_dtype).tobytes()
+            + convert_to_storage(Ss, storage_dtype).tobytes()
+            + convert_to_storage(Vhs, storage_dtype).tobytes()
         )
         metadata: dict = {
             "original_shape": orig_shape,
@@ -709,19 +726,25 @@ class _SVDCompress:
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(data), 1),
             _BF16_FLAG: was_bf16,
+            "_storage_dtype": storage_dtype_code,
         }
         if store_factors:
-            # Store raw SVD factors as float16 arrays for entangled cascade
-            metadata["_svd_U"] = Us.astype(np.float16)
-            metadata["_svd_S"] = Ss.astype(np.float16)
-            metadata["_svd_Vt"] = Vhs.astype(np.float16)
+            metadata["_svd_U"] = convert_to_storage(Us, storage_dtype)
+            metadata["_svd_S"] = convert_to_storage(Ss, storage_dtype)
+            metadata["_svd_Vt"] = convert_to_storage(Vhs, storage_dtype)
         return data, metadata
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         was_bf16 = metadata.get(_BF16_FLAG, False)
+        storage_dtype = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(storage_dtype.itemsize)
         if metadata.get("passthrough"):
             out = (
-                np.frombuffer(data, dtype=np.float16)
+                convert_from_storage(
+                    np.frombuffer(data, dtype=storage_dtype),
+                    storage_dtype,
+                    np.float32,
+                )
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
@@ -729,14 +752,23 @@ class _SVDCompress:
         m, n, rank = struct.unpack_from("<III", data, 0)
         off = 12
         orig_shape = metadata.get("original_shape", (m, n))
-        U_r = np.frombuffer(data[off : off + m * rank * 2], dtype=np.float16).reshape(
-            m, rank
+        U_r = convert_from_storage(
+            np.frombuffer(data[off : off + m * rank * es], dtype=storage_dtype).reshape(
+                m, rank
+            ),
+            storage_dtype,
         )
-        off += m * rank * 2
-        S_r = np.frombuffer(data[off : off + rank * 2], dtype=np.float16)
-        off += rank * 2
-        Vh_r = np.frombuffer(data[off : off + rank * n * 2], dtype=np.float16).reshape(
-            rank, n
+        off += m * rank * es
+        S_r = convert_from_storage(
+            np.frombuffer(data[off : off + rank * es], dtype=storage_dtype),
+            storage_dtype,
+        )
+        off += rank * es
+        Vh_r = convert_from_storage(
+            np.frombuffer(data[off : off + rank * n * es], dtype=storage_dtype).reshape(
+                rank, n
+            ),
+            storage_dtype,
         )
         recon = (U_r.astype(np.float32) * S_r.astype(np.float32)) @ Vh_r.astype(
             np.float32
@@ -770,20 +802,10 @@ class _SVDCompress:
         m, n = t.shape
         k = min(m, n)
 
-        # Tiny matrices: passthrough
-        if k < 4 or t.size < 1024:
+        if k < 4:
             return max(k // 4, 2)
 
-        # Subsample for very large matrices
-        if t.size > 10_000_000:
-            sample_rows = min(1000, m)
-            sample_cols = min(1000, n)
-            rng = np.random.RandomState(42)
-            row_idx = rng.choice(m, sample_rows, replace=False)
-            col_idx = rng.choice(n, sample_cols, replace=False)
-            sampled = t[np.ix_(row_idx, col_idx)]
-        else:
-            sampled = t
+        sampled = t
 
         # Compute top n_samples singular values via randomized SVD
         k_sample = min(n_samples, min(sampled.shape) - 1)
@@ -840,7 +862,7 @@ class _SVDCompress:
         m, n = t.shape
         k = min(m, n)
 
-        if k < 4 or t.size < 1024:
+        if k < 4:
             # Too small for SVD — passthrough via standard compress
             data, meta = self.compress(tensor)
             recon = self.decompress(data, meta)
@@ -914,17 +936,11 @@ class _DCTSpectral:
         keep_ratio: Optional[float] = None,
         error_budget: float = 0.01,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        storage_dtype_code = int(encode_dtype_code(storage_dtype))
         tensor_f32, was_bf16 = _bf16_normalize(tensor)
         t = tensor_f32
         orig_shape = t.shape
-        if t.size < 1024:
-            data = t.astype(np.float16).tobytes()
-            return data, {
-                "original_shape": orig_shape,
-                "passthrough": True,
-                "compression_ratio": tensor.nbytes / max(len(data), 1),
-                _BF16_FLAG: was_bf16,
-            }
         if keep_ratio is None:
             keep_ratio = max(0.005, error_budget * 10)
         if t.ndim == 1:
@@ -933,7 +949,7 @@ class _DCTSpectral:
             n_keep = max(1, int(n * keep_ratio))
             top_idx = np.argpartition(-np.abs(coeffs), n_keep - 1)[:n_keep]
             idx = np.sort(top_idx).astype(np.uint32)
-            vals = coeffs[idx].astype(np.float16)
+            vals = convert_to_storage(coeffs[idx], storage_dtype)
             data = idx.tobytes() + vals.tobytes()
             metadata: dict = {
                 "original_shape": orig_shape,
@@ -943,6 +959,7 @@ class _DCTSpectral:
                 "passthrough": False,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
                 _BF16_FLAG: was_bf16,
+                "_storage_dtype": storage_dtype_code,
             }
             return data, metadata
         if t.ndim == 2:
@@ -957,7 +974,7 @@ class _DCTSpectral:
         flat = coeffs.ravel()
         top_idx = np.argpartition(-np.abs(flat.astype(np.float64)), n_keep - 1)[:n_keep]
         idx = np.sort(top_idx).astype(np.uint32)
-        vals = flat.ravel()[idx].astype(np.float16)
+        vals = convert_to_storage(flat.ravel()[idx], storage_dtype)
         data = idx.tobytes() + vals.tobytes()
         metadata = {
             "original_shape": orig_shape,
@@ -968,6 +985,7 @@ class _DCTSpectral:
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(data), 1),
             _BF16_FLAG: was_bf16,
+            "_storage_dtype": storage_dtype_code,
         }
         del coeffs, flat
         gc.collect()
@@ -975,9 +993,15 @@ class _DCTSpectral:
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         was_bf16 = metadata.get(_BF16_FLAG, False)
+        storage_dtype = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(storage_dtype.itemsize)
         if metadata.get("passthrough"):
             out = (
-                np.frombuffer(data, dtype=np.float16)
+                convert_from_storage(
+                    np.frombuffer(data, dtype=storage_dtype),
+                    storage_dtype,
+                    np.float32,
+                )
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
@@ -985,7 +1009,10 @@ class _DCTSpectral:
         n_keep = metadata["n_keep"]
         off = n_keep * 4
         idx = np.frombuffer(data[:off], dtype=np.uint32)
-        vals = np.frombuffer(data[off : off + n_keep * 2], dtype=np.float16)
+        vals = convert_from_storage(
+            np.frombuffer(data[off : off + n_keep * es], dtype=storage_dtype),
+            storage_dtype,
+        )
         ndim = metadata.get("ndim", 2)
         if ndim == 1:
             n = metadata["n"]
@@ -1010,17 +1037,11 @@ class _TensorTrain:
     def compress(
         self, tensor: np.ndarray, rank: Optional[int] = None
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        storage_dtype_code = int(encode_dtype_code(storage_dtype))
         tensor_f32, was_bf16 = _bf16_normalize(tensor)
         t = tensor_f32
         orig_shape = t.shape
-        if t.size < 2048:
-            data = t.astype(np.float16).tobytes()
-            return data, {
-                "original_shape": orig_shape,
-                "passthrough": True,
-                "compression_ratio": tensor.nbytes / max(len(data), 1),
-                _BF16_FLAG: was_bf16,
-            }
         dims = self._factor_4d(t.size)
         reshaped = t.reshape(dims)
         n1, n2, n3, n4 = dims
@@ -1041,29 +1062,22 @@ class _TensorTrain:
         r = max(r, 2)
         # Core 1
         unfolded = reshaped.reshape(n1, -1)
-        if unfolded.size > 100000:
-            U, S, Vt = _randomized_svd(unfolded, min(r, min(unfolded.shape)))
-        else:
-            U, S, Vt = np.linalg.svd(unfolded, full_matrices=False)
+        U, S, Vt = np.linalg.svd(unfolded, full_matrices=False)
         r1 = min(r, U.shape[1] - 1)
-        g1 = U[:, :r1].astype(np.float16)
+        g1 = convert_to_storage(U[:, :r1], storage_dtype)
         inter = (S[:r1, None] * Vt[:r1, :]).reshape(r1 * n2, -1)
         # Core 2
-        if inter.size > 100000:
-            U, S, Vt = _randomized_svd(inter, min(r, min(inter.shape)))
-        else:
-            U, S, Vt = np.linalg.svd(inter, full_matrices=False)
+        U, S, Vt = np.linalg.svd(inter, full_matrices=False)
         r2 = min(r, U.shape[1] - 1)
-        g2 = U[:, :r2].astype(np.float16)
+        g2 = convert_to_storage(U[:, :r2], storage_dtype)
         inter = (S[:r2, None] * Vt[:r2, :]).reshape(r2 * n3, -1)
         # Core 3
-        if inter.size > 100000:
-            U, S, Vt = _randomized_svd(inter, min(r, min(inter.shape)))
-        else:
-            U, S, Vt = np.linalg.svd(inter, full_matrices=False)
+        U, S, Vt = np.linalg.svd(inter, full_matrices=False)
         r3 = min(r, U.shape[1] - 1)
-        g3 = U[:, :r3].astype(np.float16)
-        g4 = (S[:r3, None] * Vt[:r3, :]).reshape(r3, n4).astype(np.float16)
+        g3 = convert_to_storage(U[:, :r3], storage_dtype)
+        g4 = convert_to_storage(
+            (S[:r3, None] * Vt[:r3, :]).reshape(r3, n4), storage_dtype
+        )
         cores = [g1, g2, g3, g4]
         core_data = b"".join(c.tobytes() for c in cores)
         core_shapes = [list(c.shape) for c in cores]
@@ -1075,6 +1089,7 @@ class _TensorTrain:
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(core_data), 1),
             _BF16_FLAG: was_bf16,
+            "_storage_dtype": storage_dtype_code,
         }
         del cores, reshaped, inter, U, S, Vt
         gc.collect()
@@ -1082,9 +1097,15 @@ class _TensorTrain:
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         was_bf16 = metadata.get(_BF16_FLAG, False)
+        storage_dtype = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(storage_dtype.itemsize)
         if metadata.get("passthrough"):
             out = (
-                np.frombuffer(data, dtype=np.float16)
+                convert_from_storage(
+                    np.frombuffer(data, dtype=storage_dtype),
+                    storage_dtype,
+                    np.float32,
+                )
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
@@ -1094,12 +1115,9 @@ class _TensorTrain:
         cores = []
         off = 0
         for s in shapes:
-            nb = int(np.prod(s)) * 2
-            cores.append(
-                np.frombuffer(data[off : off + nb], dtype=np.float16)
-                .reshape(s)
-                .astype(np.float32)
-            )
+            nb = int(np.prod(s)) * es
+            raw = np.frombuffer(data[off : off + nb], dtype=storage_dtype).reshape(s)
+            cores.append(convert_from_storage(raw, storage_dtype).astype(np.float32))
             off += nb
         n1, n2, n3, n4 = dims
         r1, r2, r3 = shapes[0][1], shapes[1][1], shapes[2][1]
@@ -1153,17 +1171,21 @@ class _FWHTCompress:
     ) -> Tuple[bytes, dict]:
         if keep_ratio is None:
             keep_ratio = max(0.002, error_budget * 5)
+        storage_dtype = detect_storage_dtype(tensor)
+        storage_dtype_code = int(encode_dtype_code(storage_dtype))
         tensor_f32, was_bf16 = _bf16_normalize(tensor)
         t = tensor_f32.ravel()
         n_orig = len(t)
         if n_orig < 1024:
-            data = t.astype(np.float16).tobytes()
+            st = np.dtype("float16") if storage_dtype.itemsize > 2 else storage_dtype
+            data = convert_to_storage(t, st).tobytes()
             return data, {
                 "n_orig": n_orig,
                 "original_shape": tensor.shape,
                 "passthrough": True,
                 "compression_ratio": tensor.nbytes / max(len(data), 1),
                 _BF16_FLAG: was_bf16,
+                "_storage_dtype": encode_dtype_code(st),
             }
         padded_len = next_power_of_two(n_orig)
         padded = np.zeros(padded_len, dtype=np.float32)
@@ -1175,7 +1197,7 @@ class _FWHTCompress:
         n_keep = max(1, int(padded_len * keep_ratio))
         top_idx = np.argpartition(-np.abs(rotated), n_keep - 1)[:n_keep]
         idx = np.sort(top_idx).astype(np.uint32)
-        vals = rotated[idx].astype(np.float16)
+        vals = convert_to_storage(rotated[idx], storage_dtype)
         data = idx.tobytes() + vals.tobytes()
         metadata: dict = {
             "original_shape": tensor.shape,
@@ -1185,6 +1207,7 @@ class _FWHTCompress:
             "passthrough": False,
             "compression_ratio": tensor.nbytes / max(len(data), 1),
             _BF16_FLAG: was_bf16,
+            "_storage_dtype": storage_dtype_code,
         }
         del padded, rotated, signs
         gc.collect()
@@ -1192,9 +1215,15 @@ class _FWHTCompress:
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         was_bf16 = metadata.get(_BF16_FLAG, False)
+        storage_dtype = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(storage_dtype.itemsize)
         if metadata.get("passthrough"):
             out = (
-                np.frombuffer(data, dtype=np.float16)
+                convert_from_storage(
+                    np.frombuffer(data, dtype=storage_dtype),
+                    storage_dtype,
+                    np.float32,
+                )
                 .reshape(metadata["original_shape"])
                 .astype(np.float32)
             )
@@ -1204,7 +1233,10 @@ class _FWHTCompress:
         n_orig = metadata["n_orig"]
         off = n_keep * 4
         idx = np.frombuffer(data[:off], dtype=np.uint32)
-        vals = np.frombuffer(data[off : off + n_keep * 2], dtype=np.float16)
+        vals = convert_from_storage(
+            np.frombuffer(data[off : off + n_keep * es], dtype=storage_dtype),
+            storage_dtype,
+        )
         coeffs = np.zeros(padded_len, dtype=np.float32)
         coeffs[idx] = vals.astype(np.float32)
         rng = np.random.RandomState(42)
@@ -1213,6 +1245,35 @@ class _FWHTCompress:
         result *= signs
         out = result[:n_orig].astype(np.float32).reshape(metadata["original_shape"])
         return _bf16_denormalize(out, was_bf16)
+
+
+class _Cascade5Stage:
+    name = "cascade_5stage"
+    category = "unified"
+
+    def compress(
+        self,
+        tensor: np.ndarray,
+        target_ratio: float = 200.0,
+    ) -> Tuple[bytes, dict]:
+        from spectralstream.compression.cascade_5stage import compress_cascade
+
+        payload, meta = compress_cascade(tensor, target_ratio)
+        import pickle
+
+        serialized = pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL)
+        meta["_cascade_payload_staged"] = payload
+        return serialized, meta
+
+    def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
+        from spectralstream.compression.cascade_5stage import decompress_cascade
+
+        payload = metadata.get("_cascade_payload_staged")
+        if payload is None:
+            import pickle
+
+            payload = pickle.loads(data)
+        return decompress_cascade(payload, metadata)
 
 
 METHOD_REGISTRY: Dict[str, Any] = {
@@ -1226,4 +1287,5 @@ METHOD_REGISTRY: Dict[str, Any] = {
     "dct_spectral": _DCTSpectral(),
     "tensor_train": _TensorTrain(),
     "fwht_compress": _FWHTCompress(),
+    "cascade_5stage": _Cascade5Stage(),
 }

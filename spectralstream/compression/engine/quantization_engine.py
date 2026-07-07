@@ -141,7 +141,7 @@ class StrategySelector:
         shape = tensor.shape
         n_elements = int(np.prod(shape))
         if sensitivity > 0.9:
-            return "raw" if n_elements < 4096 else "int8"
+            return "int8"
         if len(shape) == 2:
             min_dim = min(shape)
             if min_dim >= 64:

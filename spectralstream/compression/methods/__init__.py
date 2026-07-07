@@ -40,7 +40,11 @@ from spectralstream.compression.engine._methods import (
     _DCTSpectral,
     _TensorTrain,
     _FWHTCompress,
+    _Cascade5Stage,
 )
+
+# Cascade 5-stage (direct class with full control)
+from spectralstream.compression.cascade_5stage import FiveStageCascade
 
 # Decomposition methods
 from spectralstream.compression.methods.decomposition._class_wrappers import (
@@ -229,6 +233,9 @@ from spectralstream.compression.methods.functional.kolmogorov import (
 )
 from spectralstream.compression.methods.functional.lagrangian import Lagrangian
 from spectralstream.compression.methods.functional.siren import SIRENINR
+from spectralstream.compression.methods.functional.ergodic_hyperfunction import (
+    ErgodicHyperfunction,
+)
 from spectralstream.compression.methods.functional.symbolic import SymbolicRegression
 from spectralstream.compression.methods.functional.landau_zener import LandauZener
 from spectralstream.compression.methods.functional.neural_ode import NeuralODE
@@ -770,6 +777,24 @@ _METHOD_CLASSES_DATA: Dict[str, Any] = {
     "decompose_then_transform": DecomposeThenTransform,
     "all_methods_ensemble": AllMethodsEnsemble,
     "error_feedback_quant": ErrorFeedbackQuant,
+    # Cascade 5-stage (from _methods.py — bytes interface)
+    "cascade_5stage": _Cascade5Stage,
+    "five_stage_cascade": FiveStageCascade,
+    "cascade_5stage_ratio_100": type(
+        "Cascade5StageR100",
+        (_Cascade5Stage,),
+        {"name": "cascade_5stage_ratio_100"},
+    )(),
+    "cascade_5stage_ratio_200": type(
+        "Cascade5StageR200",
+        (_Cascade5Stage,),
+        {"name": "cascade_5stage_ratio_200"},
+    )(),
+    "cascade_5stage_ratio_500": type(
+        "Cascade5StageR500",
+        (_Cascade5Stage,),
+        {"name": "cascade_5stage_ratio_500"},
+    )(),
     # Lossless
     "lossless_zlib": LosslessZlib,
     "lossless_lz4": LosslessLZ4,
@@ -786,6 +811,7 @@ _METHOD_CLASSES_DATA: Dict[str, Any] = {
     "landau_zener": LandauZener,
     "neural_ode": NeuralODE,
     "siren": SIRENINR,
+    "ergodic_hyperfunction": ErgodicHyperfunction,
     "symbolic_regression": SymbolicRegression,
     # Information-theoretic
     "archive_information_bottleneck": ArchiveInformationBottleneck,

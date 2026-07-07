@@ -1187,10 +1187,6 @@ class UnifiedMethodOracle:
             votes["dct_spectral"] = 0.9
             votes["dct_2d"] = 0.8
             votes["wavelet_haar"] = 0.7
-        elif n_elements > 50000:
-            votes["block_int8"] = 0.9
-            votes["block_int4"] = 0.8
-            votes["product_quantize"] = 0.7
         else:
             votes["dct_spectral"] = 0.7
             votes["block_int8"] = 0.6

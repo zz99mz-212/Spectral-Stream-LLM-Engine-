@@ -371,7 +371,7 @@ def is_1d(tensor: np.ndarray) -> bool:
 
 
 def is_tiny(tensor: np.ndarray) -> bool:
-    return tensor.nbytes < 1024
+    return tensor.nbytes < 1
 
 
 def is_moe_layer(name: str) -> bool:
@@ -1912,7 +1912,10 @@ class UnifiedModelCompressionEngine:
                     )
                 except Exception as exc:
                     logger.error(
-                        "Compression failed for tensor '%s': %s", name, exc, exc_info=True
+                        "Compression failed for tensor '%s': %s",
+                        name,
+                        exc,
+                        exc_info=True,
                     )
                     failures.append(name)
                 done += 1

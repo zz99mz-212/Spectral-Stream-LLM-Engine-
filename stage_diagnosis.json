@@ -1,0 +1,168 @@
+{
+  "tensor": "model.language_model.layers.0.self_attn.q_proj.weight",
+  "shape": [
+    2048,
+    1536
+  ],
+  "dtype": "float32",
+  "stats": {
+    "min": -0.259765625,
+    "max": 0.259765625,
+    "mean": 8.486515980621334e-06,
+    "std": 0.026070311665534973
+  },
+  "stage1": {
+    "time_sec": 0.11526226997375488,
+    "sv_orig_top10": [
+      10.462329458354036,
+      5.09249382052934,
+      4.4839534207968015,
+      4.235885954445256,
+      3.8242577297448332,
+      3.779673853815395,
+      3.434951432697747,
+      3.3108446250223325,
+      2.9777210370210385,
+      2.850109780580212
+    ],
+    "sv_perm_top10": [
+      10.462329458354038,
+      5.092493820529339,
+      4.483953420796804,
+      4.235885954445253,
+      3.824257729744834,
+      3.779673853815395,
+      3.4349514326977446,
+      3.31084462502233,
+      2.9777210370210385,
+      2.8501097805802127
+    ],
+    "orig_sv_tail256_pct": 65.56647523255603,
+    "perm_sv_tail256_pct": 65.56647523255603
+  },
+  "stage2": {
+    "time_sec": 12.107457876205444,
+    "tt_rank": 23,
+    "bond_dims": [
+      23,
+      23
+    ],
+    "all_dims": [
+      32,
+      64,
+      1536
+    ],
+    "core_shapes": [
+      [
+        1,
+        32,
+        23
+      ],
+      [
+        23,
+        64,
+        23
+      ],
+      [
+        23,
+        1536,
+        1
+      ]
+    ],
+    "sv_ratios": [
+      6.0307252314797966,
+      505.46244994717927
+    ],
+    "snr_db": 0.6477801717987702,
+    "rel_mse": 0.8614340394241037,
+    "cosine_sim": 0.3722446129341924
+  },
+  "stage3": {
+    "time_sec": 0.08692407608032227,
+    "n_kept": 31457,
+    "n_total": 3145728,
+    "scale": 0.12368235493476065,
+    "snr_db": 0.6628046612016494,
+    "rel_mse": 0.8584590431143053
+  },
+  "stage4": {
+    "time_sec": 0.33387064933776855,
+    "n_channels": 16,
+    "snr_db": 0.6628710926355554,
+    "rel_mse": 0.8584459118793035
+  },
+  "final": {
+    "snr_db": 0.6628710926355563,
+    "rel_mse": 0.8584459118793035,
+    "cosine_sim": 0.37623696876523244,
+    "max_abs_error": 0.16329087650121557
+  },
+  "stage2_rank64": {
+    "bond_dims": [
+      31,
+      64
+    ],
+    "core_shapes": [
+      [
+        1,
+        32,
+        31
+      ],
+      [
+        31,
+        64,
+        64
+      ],
+      [
+        64,
+        1536,
+        1
+      ]
+    ],
+    "snr_db": 1.2036909880777908,
+    "rel_mse": 0.7579332282452951,
+    "final_snr_db": 1.2036909880777908
+  },
+  "ratio_vs_fp32": 26.061343899059484,
+  "diagnosis": {
+    "dominant_error_source": "TT-SVD rank truncation",
+    "tt_error_contribution_pct": 101.7,
+    "analysis": {
+      "why_tt_fails": [
+        "The _matrix_fold_dims for d=3 creates mode-0 dimension of only 32 (from m=2048 \u2192 [32,64])",
+        "First SVD is on (32, 98304) \u2014 max 32 singular values available, matrix has 1536 DoF",
+        "Auto-computed rank r=23 keeps only 23/32 singular values from first mode",
+        "Second SVD is on (23*64, 1536) = (1472, 1536) \u2014 rank-23 out of 1472 possible, SV ratio = 505",
+        "Result: TT captures only ~14% of signal variance (rel_mse=0.86, SNR=0.65dB)"
+      ],
+      "why_subsequent_stages_fail": [
+        "TT residual looks like random noise (no exploitable structure)",
+        "Sparse top-1% captures SNR=0.02dB of TT residual",
+        "Ergodic sine fitting captures SNR=0.00dB of sparse residual",
+        "SIREN (from vision tower test) captures SNR=0.00dB of ergodic residual",
+        "All post-TT stages combined improve SNR from 0.65\u21920.66dB \u2014 effectively zero value"
+      ],
+      "contribution_breakdown": {
+        "TT-SVD rank truncation": "86.1% of original variance lost (rel_mse=0.861 in permuted space)",
+        "Sparse top-1%": "<0.1% improvement",
+        "Ergodic": "<0.01% improvement",
+        "SIREN": "0% improvement (200-epoch SIREN final loss = initial loss)"
+      }
+    },
+    "recommendations": [
+      "CRITICAL: Fix TT-SVD. Use d=5 instead of d=3 to avoid mode-0 bottleneck.",
+      "CRITICAL: Remove automatic rank computation from target_ratio. Set minimum rank = max(128, 2*all_dims[0]).",
+      "HIGH: Skip stages 3-5 entirely when TT error dominates. Add a variance-aware gate.",
+      "HIGH: Replace TT-SVD with full SVD + low-rank for matrices smaller than 4096\u00d74096.",
+      "MEDIUM: If keeping residual stages, use quantized residual instead of sparse/ergodic for noise-like residuals.",
+      "LOW: SIREN is useless \u2014 200 epochs of gradient descent cannot fit a near-noise tensor."
+    ],
+    "ablation_summary": {
+      "TT-SVD only (rank-23)": "SNR = 0.65 dB, ratio \u2248 45:1",
+      "+ Sparse (top-1%)": "SNR = 0.66 dB",
+      "+ Ergodic (16ch)": "SNR = 0.66 dB",
+      "+ SIREN (32\u00d7200)": "SNR = 0.66 dB (extrapolated from vision tower)",
+      "TT-SVD rank-64 only": "SNR = 1.20 dB (still terrible \u2014 mode-0 limited to 31)"
+    }
+  }
+}

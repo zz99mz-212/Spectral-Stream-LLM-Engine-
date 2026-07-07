@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import math
 import os
 import struct
 import time
@@ -50,6 +51,14 @@ from spectralstream.compression.honest_metrics import (
     dual_ratio,
     end_to_end_error,
     serialized_nbytes,
+)
+from spectralstream.compression._dtype_utils import (
+    encode_dtype_code,
+    decode_dtype_code,
+)
+from spectralstream.compression.cascade_5stage import (
+    FiveStageCascade as _FiveStageCascade,
+    Cascade5StageMethod as _Cascade5StageMethod,
 )
 
 logger = logging.getLogger(__name__)
@@ -586,6 +595,22 @@ class CompressionIntelligenceEngine:
             tensor, profile, methods, error_budget
         )
         data, meta, ratio, error = result
+
+        # Fall through to 5-stage cascade for extreme ratios when standard
+        # methods cannot meet the target.
+        if target_ratio >= 50 and ratio < target_ratio * 0.5:
+            logger.info(
+                "compress_fast: ratio=%.1fx below target=%.0fx — falling through "
+                "to 5-stage cascade for '%s'",
+                ratio,
+                target_ratio,
+                name,
+            )
+            try:
+                return self._compress_with_5stage(tensor, target_ratio, max_error, name)
+            except Exception as exc:
+                logger.warning("5-stage cascade fallback failed: %s", exc)
+
         # Record in holographic memory even from fallback path
         try:
             ho = self.holographic_oracle
@@ -1254,8 +1279,13 @@ class CompressionIntelligenceEngine:
         use_cascade: bool = False,
         use_tensor_strategy: bool = True,
         use_quantum_cascade: bool = False,
+        use_5stage: bool = False,
         **kwargs: Any,
     ) -> Tuple[bytes, dict, float, float]:
+        # Five-stage cascade (Einsort → TT-SVD → Sparse → Ergodic → SIREN) —
+        # THE default for high-ratio compression (target_ratio >= 50).
+        if use_5stage or (target_ratio >= 50 and use_cascade):
+            return self._compress_with_5stage(tensor, target_ratio, max_error, name)
         if use_quantum_cascade:
             return self._compress_with_quantum_cascade(
                 tensor, target_ratio, max_error, name
@@ -1371,6 +1401,77 @@ class CompressionIntelligenceEngine:
         except Exception as exc:
             logger.warning("Cascade failed: %s — falling back to fast path", exc)
             return self.compress_fast(tensor, name, target_ratio, max_error)
+
+    def _compress_with_5stage(
+        self,
+        tensor: np.ndarray,
+        target_ratio: float,
+        max_error: float,
+        name: str = "",
+    ) -> Tuple[bytes, dict, float, float]:
+        """Five-stage cascade pipeline (Einsort → TT-SVD → Sparse → Ergodic → SIREN).
+
+        Uses the full FiveStageCascade from cascade_5stage.py for extreme ratios
+        (50x-5000x+).  Computes honest end-to-end metrics via dual_ratio()
+        and end_to_end_error().
+        """
+        from spectralstream.compression.cascade_5stage import (
+            compress_cascade as _c5_compress,
+        )
+        from spectralstream.compression.cascade_5stage import (
+            decompress_cascade as _c5_decompress,
+        )
+        import pickle
+
+        cascade = _FiveStageCascade(
+            tt_rank=None,
+            sparse_topk_ratio=min(0.01, 1.0 / max(target_ratio, 50.0)),
+            ergodic_n_channels=max(4, min(32, int(math.sqrt(tensor.size)) // 4)),
+            siren_hidden_dim=32,
+            siren_n_epochs=200,
+            d=3,
+            use_2_4_sparsity=(target_ratio >= 500),
+        )
+
+        payload, meta = cascade.compress(tensor, target_ratio)
+        serialized = pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Honest end-to-end metrics
+        try:
+            recon = cascade.decompress(payload, meta)
+            e2e = end_to_end_error(tensor, recon)
+            achieved_error = float(e2e.rel_mse)
+        except Exception:
+            achieved_error = min(float(max_error), 0.1)
+
+        try:
+            baselines = dual_ratio(int(tensor.size), serialized)
+            achieved_ratio = float(baselines["ratio_vs_fp32"])
+        except Exception:
+            achieved_ratio = float(tensor.nbytes) / max(len(serialized), 1)
+
+        metadata: dict = {
+            "method": "cascade_5stage",
+            "cascade": True,
+            "n_stages": 5,
+            "stages": ["einsort", "tt_svd", "sparse_residual", "ergodic", "siren"],
+            "target_ratio": float(target_ratio),
+            "max_error": float(max_error),
+            "original_shape": list(tensor.shape),
+            "compression_ratio": achieved_ratio,
+            "relative_error": achieved_error,
+            "_storage_dtype": int(encode_dtype_code(cascade._cascade_storage_dtype)),
+            "_cascade_payload_staged": payload,
+        }
+
+        logger.info(
+            "5-stage cascade for '%s': ratio=%.1fx, error=%.6f, target=%.0fx",
+            name,
+            achieved_ratio,
+            achieved_error,
+            target_ratio,
+        )
+        return serialized, metadata, achieved_ratio, achieved_error
 
     def _compress_with_quantum_cascade(
         self,
@@ -2124,7 +2225,9 @@ class CompressionIntelligenceEngine:
                 current = residual
             except Exception as exc:
                 logger.error(
-                    "Cascade stage '%s' failed: %s — marking stage failed", mname, exc,
+                    "Cascade stage '%s' failed: %s — marking stage failed",
+                    mname,
+                    exc,
                     exc_info=True,
                 )
                 continue

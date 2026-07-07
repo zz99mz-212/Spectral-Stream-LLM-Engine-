@@ -11,6 +11,13 @@ import numpy as np
 from spectralstream.core.math_primitives import (
     auto_keep_fraction,
 )
+from spectralstream.compression._dtype_utils import (
+    detect_storage_dtype,
+    convert_to_storage,
+    convert_from_storage,
+    encode_dtype_code,
+    decode_dtype_code,
+)
 
 
 def _batch_haar_forward_2d(x: np.ndarray, max_level: int) -> list:
@@ -112,6 +119,8 @@ class WaveletHaar:
         keep_fraction: float | None = None,
         target_energy: float = 0.99,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         if orig.ndim == 1:
             orig = orig.reshape(1, -1)
@@ -139,11 +148,12 @@ class WaveletHaar:
             keep_fraction=kf,
             target_energy=target_energy,
             n_kept=k,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", m, n)
             + idx.astype(np.int32).tobytes()
-            + flat[idx].astype(np.float16).tobytes()
+            + convert_to_storage(flat[idx], storage_dtype).tobytes()
         )
         del coeffs, flat, levels
         gc.collect()
@@ -153,14 +163,16 @@ class WaveletHaar:
         shape = metadata["shape"]
         level = metadata.get("level", 3)
         ndim = metadata.get("ndim", 2)
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         m, n = shape
         k = metadata["n_kept"]
         pos = struct.calcsize("<ii")
         idx = np.frombuffer(data[pos : pos + k * 4], dtype=np.int32).copy().astype(int)
         pos += k * 4
-        vals = np.frombuffer(data[pos : pos + k * 2], dtype=np.float16).astype(
-            np.float64
-        )
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + k * es], dtype=sd), sd
+        ).astype(np.float64)
         thresh = np.zeros(m * n, dtype=np.float64)
         thresh[idx] = vals
         thresh = thresh.reshape(m, n)
@@ -194,6 +206,8 @@ class _WaveletGeneric:
         keep_fraction: float | None,
         target_energy: float,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         ndim = orig.ndim
         if ndim == 1:
@@ -223,11 +237,12 @@ class _WaveletGeneric:
             target_energy=target_energy,
             n_kept=k,
             ndim=ndim,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", m, n)
             + idx.astype(np.int32).tobytes()
-            + flat[idx].astype(np.float16).tobytes()
+            + convert_to_storage(flat[idx], storage_dtype).tobytes()
         )
         del coeffs, flat, levels
         gc.collect()
@@ -242,14 +257,16 @@ class _WaveletGeneric:
         shape = metadata["shape"]
         level = metadata.get("level", 3)
         ndim = metadata.get("ndim", 2)
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         m, n = shape
         k = metadata["n_kept"]
         pos = struct.calcsize("<ii")
         idx = np.frombuffer(data[pos : pos + k * 4], dtype=np.int32).copy().astype(int)
         pos += k * 4
-        vals = np.frombuffer(data[pos : pos + k * 2], dtype=np.float16).astype(
-            np.float64
-        )
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + k * es], dtype=sd), sd
+        ).astype(np.float64)
         thresh = np.zeros(m * n, dtype=np.float64)
         thresh[idx] = vals
         thresh = thresh.reshape(m, n)
@@ -327,6 +344,8 @@ class WaveletScattering:
         keep_fraction: float | None = None,
         target_energy: float = 0.99,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         m, n = orig.shape
         levels = _batch_haar_forward_2d(orig, max_level=level)
@@ -347,11 +366,12 @@ class WaveletScattering:
             keep_fraction=kf,
             target_energy=target_energy,
             n_kept=k,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", m, n)
             + idx.astype(np.int32).tobytes()
-            + flat[idx].astype(np.float16).tobytes()
+            + convert_to_storage(flat[idx], storage_dtype).tobytes()
         )
         del s2, levels
         gc.collect()
@@ -360,14 +380,16 @@ class WaveletScattering:
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         shape = metadata["shape"]
         level = metadata.get("level", 2)
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         m, n = shape
         k = metadata["n_kept"]
         pos = struct.calcsize("<ii")
         idx = np.frombuffer(data[pos : pos + k * 4], dtype=np.int32).copy().astype(int)
         pos += k * 4
-        vals = np.frombuffer(data[pos : pos + k * 2], dtype=np.float16).astype(
-            np.float64
-        )
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + k * es], dtype=sd), sd
+        ).astype(np.float64)
         coeffs = np.zeros(m * n, dtype=np.float64)
         coeffs[idx] = vals
         coeffs = coeffs.reshape(m, n)

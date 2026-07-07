@@ -224,9 +224,6 @@ class CompressionProfiler:
         elif len(t.shape) == 2 and t.effective_rank < min(t.shape) * 0.3:
             t.recommended_method = "low_rank"
             t.recommended_bits = 4
-        elif t.n_elements > 100000:
-            t.recommended_method = "product_quantize"
-            t.recommended_bits = 4
         elif t.compressibility_score > 0.6:
             t.recommended_method = "hadamard_quantize"
             t.recommended_bits = 4

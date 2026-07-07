@@ -17,6 +17,13 @@ from spectralstream.core.math_primitives import (
     fwht,
     ifwht,
 )
+from spectralstream.compression._dtype_utils import (
+    detect_storage_dtype,
+    convert_to_storage,
+    convert_from_storage,
+    encode_dtype_code,
+    decode_dtype_code,
+)
 
 
 def _serialize(arr: np.ndarray) -> bytes:
@@ -46,6 +53,8 @@ class FWHTQuant:
         block_size: int = 64,
         bits: int | None = None,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         ndim = orig.ndim
         if ndim == 1:
@@ -76,12 +85,13 @@ class FWHTQuant:
             quant_bits=bits_,
             n_blocks=n_blocks,
             ndim=ndim,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", *orig.shape)
             + struct.pack("<ii", n_blocks, bs)
             + struct.pack("<i", bits_)
-            + scales.astype(np.float16).tobytes()
+            + convert_to_storage(scales, storage_dtype).tobytes()
             + quantized.tobytes()
         )
         del result, flat, blocks, quantized
@@ -90,6 +100,8 @@ class FWHTQuant:
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         shape = metadata["shape"]
         ndim = metadata.get("ndim", 2)
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         pos = struct.calcsize("<ii")
         n_blocks = struct.unpack_from("<i", data, pos)[0]
         pos += 4
@@ -99,10 +111,10 @@ class FWHTQuant:
         pos += 4
         dtype_quant = np.int8 if bits_ <= 8 else np.int16
 
-        scales = np.frombuffer(data[pos : pos + n_blocks * 2], dtype=np.float16).astype(
-            np.float64
-        )
-        pos += n_blocks * 2
+        scales = convert_from_storage(
+            np.frombuffer(data[pos : pos + n_blocks * es], dtype=sd), sd
+        ).astype(np.float64)
+        pos += n_blocks * es
         qsize = n_blocks * bs
         quantized = np.frombuffer(
             data[pos : pos + qsize * np.dtype(dtype_quant).itemsize], dtype=dtype_quant
@@ -132,6 +144,8 @@ class FWHT:
         keep_fraction: float | None = None,
         target_energy: float = 0.99,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         if orig.ndim == 1:
             orig = orig.reshape(1, -1)
@@ -151,25 +165,28 @@ class FWHT:
             target_energy=target_energy,
             n_kept=k,
             ndim=tensor.ndim,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", *orig.shape)
             + idx.astype(np.int32).tobytes()
-            + flat[idx].astype(np.float16).tobytes()
+            + convert_to_storage(flat[idx], storage_dtype).tobytes()
         )
         return data, meta
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         shape = metadata["shape"]
         ndim = metadata.get("ndim", 2)
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         m, n = shape
         k = metadata["n_kept"]
         pos = struct.calcsize("<ii")
         idx = np.frombuffer(data[pos : pos + k * 4], dtype=np.int32).copy().astype(int)
         pos += k * 4
-        vals = np.frombuffer(data[pos : pos + k * 2], dtype=np.float16).astype(
-            np.float64
-        )
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + k * es], dtype=sd), sd
+        ).astype(np.float64)
         thresh = np.zeros(m * n, dtype=np.float64)
         thresh[idx] = vals
         thresh = thresh.reshape(m, n)

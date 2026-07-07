@@ -382,10 +382,6 @@ class CompressionProfiler:
         return "LOW"
 
     def _classify_tensor_type(self, p: TensorProfile, name: str) -> str:
-        if p.nbytes < 1024:
-            return "norm_bias"
-        if p.shape and p.shape[0] > 10000 and p.n_elements > 1_000_000:
-            return "embedding"
         t = _classify_by_name_simple(name)
         if t == "norm":
             return "norm_bias"
@@ -394,8 +390,6 @@ class CompressionProfiler:
     def _recommend(self, p: TensorProfile) -> Tuple[int, List[str]]:
         recommended: List[str] = []
         bits = 8
-        if p.nbytes < 4096:
-            return 16, ["passthrough"]
         if p.noise_floor > 0.6:
             recommended.append("delta_int4")
         if p.outlier_ratio > 0.3:

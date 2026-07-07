@@ -296,8 +296,6 @@ class DynamicTensorIntelligence:
             return "spectral_dct"
         if features.spectral_entropy < 0.5 and features.dct_concentration < 0.5:
             return "hadamard"
-        if features.n_elements > 50000:
-            return "product_quantize"
         return "spectral_dct"
 
     def _best_performing_method(self) -> Optional[str]:

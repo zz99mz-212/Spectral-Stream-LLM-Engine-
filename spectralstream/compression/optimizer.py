@@ -59,7 +59,7 @@ class TensorSampler:
     }
 
     def __init__(
-        self, model_path: str, max_samples: int = 50, max_elements: int = 500_000
+        self, model_path: str, max_samples: int = 50, max_elements: int = 2**63
     ) -> None:
         self.model_path = model_path
         self.max_samples = max_samples

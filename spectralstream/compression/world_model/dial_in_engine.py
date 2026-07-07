@@ -613,7 +613,7 @@ class CompressionDialInEngine:
         self,
         tensors: Dict[str, Tuple[np.ndarray, str]],
         max_methods: Optional[int] = None,
-        method_timeout: float = 10.0,
+        method_timeout: float = 1e9,
     ) -> Dict[str, List[MethodTestRecord]]:
         """Test methods on representative tensors with per-method timeout.
 
@@ -621,9 +621,6 @@ class CompressionDialInEngine:
         then propagates results to all tensors of that type.  This avoids
         O(methods × tensors) explosion (80 methods × 2000 tensors = 160K
         tests → ~80 × 11 types = ~880 tests).
-
-        Uses SIGALRM-based timeout (Unix) to actually interrupt stuck methods.
-        Falls back to sequential execution without timeout if signal unavailable.
         """
         method_by_type: Dict[str, List[MethodTestRecord]] = {}
         all_methods = self.methods
@@ -642,38 +639,13 @@ class CompressionDialInEngine:
                 type_reps[ttype] = tensor
                 type_names[ttype] = tname
 
-        # Set up SIGALRM-based timeout if possible (Unix only)
-        _use_alarm = False
-        try:
-            import signal
-
-            class _TimeoutExc(Exception):
-                pass
-
-            def _alarm_handler(signum, frame):
-                raise _TimeoutExc("method timed out")
-
-            signal.signal(signal.SIGALRM, _alarm_handler)
-            _use_alarm = True
-        except (ImportError, AttributeError, ValueError):
-            pass
-
         def _run_validation(
             mname: str, minfo: Dict[str, Any], tensor: np.ndarray
         ) -> Optional[MethodTestRecord]:
             try:
-                if _use_alarm:
-                    signal.setitimer(signal.ITIMER_REAL, method_timeout)
                 result = validate_single_method(mname, minfo, tensor=tensor)
-                if _use_alarm:
-                    signal.setitimer(signal.ITIMER_REAL, 0)
             except Exception:
-                if _use_alarm:
-                    signal.setitimer(signal.ITIMER_REAL, 0)
                 return None
-            finally:
-                if _use_alarm:
-                    signal.setitimer(signal.ITIMER_REAL, 0)
 
             if not result or not result.get("works", False):
                 return None
@@ -780,39 +752,15 @@ class CompressionDialInEngine:
     # ═══════════════════════════════════════════════════════════════════
 
     def _run_stage_with_timeout(
-        self, inst: Any, residual: np.ndarray, timeout: float = 10.0
+        self, inst: Any, residual: np.ndarray, timeout: float = 1e9
     ) -> Optional[Tuple[bytes, Dict[str, Any], np.ndarray]]:
-        """Run a compress+decompress stage with SIGALRM timeout."""
-        _use_alarm = False
+        """Run a compress+decompress stage."""
         try:
-            import signal
-
-            class _StageTimeout(Exception):
-                pass
-
-            def _handler(signum, frame):
-                raise _StageTimeout("stage timed out")
-
-            signal.signal(signal.SIGALRM, _handler)
-            _use_alarm = True
-        except (ImportError, AttributeError, ValueError):
-            pass
-
-        try:
-            if _use_alarm:
-                signal.setitimer(signal.ITIMER_REAL, timeout)
             data, meta = inst.compress(residual)
             stage_recon = inst.decompress(data, meta)
-            if _use_alarm:
-                signal.setitimer(signal.ITIMER_REAL, 0)
             return data, meta, stage_recon
         except Exception:
-            if _use_alarm:
-                signal.setitimer(signal.ITIMER_REAL, 0)
             return None
-        finally:
-            if _use_alarm:
-                signal.setitimer(signal.ITIMER_REAL, 0)
 
     def discover_cascades(
         self,
@@ -862,7 +810,9 @@ class CompressionDialInEngine:
                                 stage_recon = stage_recon.reshape(residual.shape)
 
                             stage_ratio = residual.nbytes / max(len(data), 1)
-                            stage_bytes = serialized_nbytes(data) + serialized_nbytes(meta)
+                            stage_bytes = serialized_nbytes(data) + serialized_nbytes(
+                                meta
+                            )
                             cumulative_serialized_bytes += stage_bytes
                             recon += stage_recon.astype(np.float64)
                             residual = tensor.astype(np.float64) - recon
@@ -1637,9 +1587,6 @@ def cmd_dial_in_main(args: Any) -> None:
                 if nbytes == 0 or any(s == 0 for s in shape):
                     _skipped_empty += 1
                     continue
-                if nbytes < 1024:
-                    _skipped_small += 1
-                    continue
                 try:
                     arr = loader.read_tensor(name, shape, dtype_str, offset, nbytes)
                     tensor_dict[name] = _bf16_to_f32(arr)
@@ -1675,9 +1622,6 @@ def cmd_dial_in_main(args: Any) -> None:
                         arr = tensors.get_tensor(k)
                         if arr.nbytes == 0 or any(s == 0 for s in arr.shape):
                             _skipped_empty += 1
-                            continue
-                        if arr.nbytes < 1024:
-                            _skipped_small += 1
                             continue
                         tensor_dict[k] = _bf16_to_f32(arr)
                     except Exception as inner:

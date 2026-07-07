@@ -813,18 +813,7 @@ class LossMetricsTracker:
         # Start with type-based default
         pattern = self.PATTERN_MAP.get(tensor_type, self._default_aggressiveness)
 
-        # Adjust for tensor size
-        n_elements = tensor.size
-        if n_elements >= 10_000_000:
-            # Very large tensors can tolerate more aggression
-            if pattern in ("balanced",):
-                pattern = "aggressive"
-        elif n_elements < 100_000:
-            # Small tensors need conservative treatment
-            if pattern == "extreme":
-                pattern = "aggressive"
-            elif pattern == "aggressive":
-                pattern = "balanced"
+        # No size-based pattern adjustment — every method tries every tensor
 
         # Adjust for target ratio
         if target_ratio is not None:

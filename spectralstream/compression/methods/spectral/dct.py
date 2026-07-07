@@ -26,6 +26,13 @@ from spectralstream.core.math_primitives.transforms import (
     _dct_via_fft_1d,
     _idct_via_matrix_1d,
 )
+from spectralstream.compression._dtype_utils import (
+    detect_storage_dtype,
+    convert_to_storage,
+    convert_from_storage,
+    encode_dtype_code,
+    decode_dtype_code,
+)
 
 
 def _delta_encode(arr: np.ndarray) -> np.ndarray:
@@ -78,6 +85,8 @@ class DCTQuant:
         block_size: int = 64,
         bits: int | None = None,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         ndim = orig.ndim
         if ndim == 1:
@@ -107,12 +116,13 @@ class DCTQuant:
             quant_bits=bits_,
             n_blocks=n_blocks,
             ndim=ndim,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", *orig.shape)
             + struct.pack("<ii", n_blocks, bs)
             + struct.pack("<i", bits_)
-            + scales.astype(np.float16).tobytes()
+            + convert_to_storage(scales, storage_dtype).tobytes()
             + quantized.tobytes()
         )
         del coeffs, flat, blocks, quantized
@@ -122,6 +132,8 @@ class DCTQuant:
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         shape = metadata["shape"]
         ndim = metadata.get("ndim", 2)
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         pos = struct.calcsize("<ii")
         n_blocks = struct.unpack_from("<i", data, pos)[0]
         pos += 4
@@ -131,10 +143,10 @@ class DCTQuant:
         pos += 4
         dtype_quant = np.int8 if bits_ <= 8 else np.int16
 
-        scales = np.frombuffer(data[pos : pos + n_blocks * 2], dtype=np.float16).astype(
-            np.float64
-        )
-        pos += n_blocks * 2
+        scales = convert_from_storage(
+            np.frombuffer(data[pos : pos + n_blocks * es], dtype=sd), sd
+        ).astype(np.float64)
+        pos += n_blocks * es
         qsize = n_blocks * bs
         quantized = np.frombuffer(
             data[pos : pos + qsize * np.dtype(dtype_quant).itemsize], dtype=dtype_quant
@@ -162,6 +174,8 @@ class DCTAdaptiveBits:
         block_size: int = 16,
         target_ratio: float = 8.0,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         ndim = orig.ndim
         if ndim == 1:
@@ -200,7 +214,7 @@ class DCTAdaptiveBits:
         data = struct.pack("<ii", m, n)
         data += struct.pack("<ii", n_blocks, bs)
         data += struct.pack("<d", target_ratio)
-        data += scales_2d.astype(np.float16).tobytes()
+        data += convert_to_storage(scales_2d, storage_dtype).tobytes()
         data += bits_per_coeff.astype(np.int8).tobytes()
 
         for c in range(n_coeff):
@@ -226,6 +240,7 @@ class DCTAdaptiveBits:
             target_ratio=target_ratio,
             ndim=ndim,
             bits_per_coeff=bits_per_coeff.tolist(),
+            _storage_dtype=sd_code,
         )
         del blocks, dct_rows, dct_cols, flat_zz
         gc.collect()
@@ -238,6 +253,8 @@ class DCTAdaptiveBits:
         n_coeff = metadata["n_coeff"]
         bits_per_coeff = np.array(metadata["bits_per_coeff"], dtype=np.int32)
         ndim = metadata.get("ndim", 2)
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
 
         pos = 8
         _n_blocks = struct.unpack_from("<i", data, pos)[0]
@@ -247,10 +264,10 @@ class DCTAdaptiveBits:
         _target = struct.unpack_from("<d", data, pos)[0]
         pos += 8
 
-        scales_2d = np.frombuffer(
-            data[pos : pos + n_coeff * 2], dtype=np.float16
+        scales_2d = convert_from_storage(
+            np.frombuffer(data[pos : pos + n_coeff * es], dtype=sd), sd
         ).astype(np.float64)
-        pos += n_coeff * 2
+        pos += n_coeff * es
         _bpc_check = np.frombuffer(data[pos : pos + n_coeff], dtype=np.int8).copy()
         pos += n_coeff
 
@@ -545,6 +562,8 @@ class DCTBlock:
         keep_fraction: float | None = None,
         target_energy: float = 0.99,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         ndim = orig.ndim
         if ndim == 1:
@@ -608,6 +627,7 @@ class DCTBlock:
             target_energy=target_energy,
             n_blocks=n_blocks,
             ndim=ndim,
+            _storage_dtype=sd_code,
         )
 
         # Serialize: header + block positions + indices + values
@@ -618,7 +638,7 @@ class DCTBlock:
         data += bw_arr.tobytes()
         data += struct.pack("<i", k_per_block)
         data += idx.astype(np.int32).tobytes()
-        data += vals.astype(np.float16).tobytes()
+        data += convert_to_storage(vals, storage_dtype).tobytes()
 
         del blocks, dct_rows, dct_cols, flat_all, idx, vals
         gc.collect()
@@ -628,6 +648,8 @@ class DCTBlock:
         shape = metadata["shape"]
         m, n = shape
         bs = metadata["block_size"]
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         pos = struct.calcsize("<ii")
         n_blocks = struct.unpack_from("<i", data, pos)[0]
         pos += 4
@@ -650,8 +672,8 @@ class DCTBlock:
         idx = idx.reshape(n_blocks, k_per_block)
         pos += n_blocks * k_per_block * 4
 
-        vals = np.frombuffer(
-            data[pos : pos + n_blocks * k_per_block * 2], dtype=np.float16
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + n_blocks * k_per_block * es], dtype=sd), sd
         ).astype(np.float64)
         vals = vals.reshape(n_blocks, k_per_block)
 
@@ -694,6 +716,8 @@ class DCT2D:
         keep_fraction: float | None = None,
         target_energy: float = 0.99,
     ) -> Tuple[bytes, dict]:
+        storage_dtype = detect_storage_dtype(tensor)
+        sd_code = int(encode_dtype_code(storage_dtype))
         orig = tensor.astype(np.float64)
         coeffs = dct_2d(orig)
         flat = coeffs.ravel()
@@ -704,24 +728,30 @@ class DCT2D:
         k = max(1, int(kf * flat.size))
         idx = np.argpartition(np.abs(flat), -k)[-k:]
         meta = dict(
-            shape=orig.shape, keep_fraction=kf, target_energy=target_energy, n_kept=k
+            shape=orig.shape,
+            keep_fraction=kf,
+            target_energy=target_energy,
+            n_kept=k,
+            _storage_dtype=sd_code,
         )
         data = (
             struct.pack("<ii", *orig.shape)
             + idx.astype(np.int32).tobytes()
-            + flat[idx].astype(np.float16).tobytes()
+            + convert_to_storage(flat[idx], storage_dtype).tobytes()
         )
         return data, meta
 
     def decompress(self, data: bytes, metadata: dict) -> np.ndarray:
         shape = metadata["shape"]
+        sd = decode_dtype_code(metadata.get("_storage_dtype", 0))
+        es = int(sd.itemsize)
         pos = struct.calcsize("<ii")
         k = metadata["n_kept"]
         idx = np.frombuffer(data[pos : pos + k * 4], dtype=np.int32).copy().astype(int)
         pos += k * 4
-        vals = np.frombuffer(data[pos : pos + k * 2], dtype=np.float16).astype(
-            np.float64
-        )
+        vals = convert_from_storage(
+            np.frombuffer(data[pos : pos + k * es], dtype=sd), sd
+        ).astype(np.float64)
         coeffs = np.zeros(shape[0] * shape[1], dtype=np.float64)
         coeffs[idx] = vals
         return idct_2d(coeffs.reshape(shape)).astype(np.float32)

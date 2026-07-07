@@ -26,7 +26,7 @@ class EinsortTT:
         t = np.asarray(tensor, dtype=np.float64)
         shape = t.shape
         d = len(shape)
-        if d < 2 or min(shape) < 2:
+        if d < 2:
             flat = t.ravel().astype(np.float32)
             return flat.astype(np.float16).tobytes(), {
                 "original_shape": shape,
@@ -85,7 +85,7 @@ class LOTR:
     def compress(self, tensor: np.ndarray, rank: int = None) -> Tuple[bytes, dict]:
         t = np.asarray(tensor, dtype=np.float64)
         orig_shape = t.shape
-        if t.ndim < 3 or t.size <= 8192:
+        if t.ndim < 3:
             flat = t.ravel().astype(np.float32)
             return flat.astype(np.float16).tobytes(), {
                 "original_shape": orig_shape,
