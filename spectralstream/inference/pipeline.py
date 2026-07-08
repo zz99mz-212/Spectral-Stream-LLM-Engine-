@@ -39,6 +39,52 @@ from spectralstream.inference.unified import (
     create_unified_engine,
 )
 
+# ── Memory-safety constants ──────────────────────────────────────────
+# Block size for vocab-dimension log-sum-exp to cap per-window logits
+# memory to (block_size * seq_len * 8) bytes instead of
+# (vocab_size * seq_len * 8).  4096 * 2048 * 8 = 64 MB vs
+# 262144 * 2048 * 8 = 4 GB  (Gemma-4 E2B has a 262k vocab).
+VOCAB_LOG_SOFTMAX_BLOCK_SIZE: int = 4096
+
+
+def _blocked_log_sum_exp(logits: np.ndarray, block_size: int) -> np.ndarray:
+    """Compute ``log(sum(exp(logits), axis=-1))`` in vocab blocks.
+
+    Standard ``np.log(np.sum(np.exp(logits), axis=-1))`` materialises a
+    ``[*, vocab_size]`` float64 intermediate that is **4 GB** for a
+    2048-token window on a 262k-vocab model.  This helper processes the
+    vocab axis in chunks of *block_size*, accumulating in float64, so
+    peak memory is ``[*, block_size]`` (e.g. 64 MB at block_size=4096).
+
+    Parameters
+    ----------
+    logits : np.ndarray
+        Logits array with shape ``(..., vocab_size)``.
+    block_size : int
+        Vocab chunk size.
+
+    Returns
+    -------
+    np.ndarray
+        ``log(sum(exp(logits), axis=-1))`` as a float64 array.
+    """
+    # Work in float64 for numerical stability of the log-sum-exp
+    logits = np.asarray(logits, dtype=np.float64)
+    vocab_size = logits.shape[-1]
+    # Subtract max for numerical stability
+    max_val = logits.max(axis=-1, keepdims=True)
+    shifted = logits - max_val
+
+    # Accumulate exp-sum in blocks
+    total = np.zeros(shifted.shape[:-1], dtype=np.float64)
+    for start in range(0, vocab_size, block_size):
+        end = min(start + block_size, vocab_size)
+        total += np.exp(shifted[..., start:end]).sum(axis=-1)
+
+    # Guard against log(0)
+    total = np.maximum(total, 1e-300)
+    return np.log(total) + max_val.squeeze(-1)
+
 
 @dataclass
 class InferenceConfig:
@@ -756,10 +802,15 @@ class InferencePipeline:
             self._kv_cache_dict.clear()
             tokens = np.array(chunk[:-1], dtype=np.int32)
             logits = self.forward(tokens)
-            log_probs = logits - logits.max(axis=-1, keepdims=True)
-            log_probs = log_probs - np.log(
-                np.exp(log_probs).sum(axis=-1, keepdims=True) + 1e-30
+            # Vocab-blocked log-softmax to cap per-window memory
+            # (T-02-01-02 / Pitfall 1).  Instead of materialising a
+            # full [seq_len, vocab_size] exp matrix (~4 GB for a 262k
+            # vocab), compute log-sum-exp in chunks.
+            log_probs_max = logits.max(axis=-1, keepdims=True)
+            log_sum_exp = _blocked_log_sum_exp(
+                logits - log_probs_max, VOCAB_LOG_SOFTMAX_BLOCK_SIZE
             )
+            log_probs = (logits - log_probs_max) - log_sum_exp[..., np.newaxis]
             target_tokens = np.array(chunk[1:], dtype=np.int32)
             token_log_probs = log_probs[np.arange(len(target_tokens)), target_tokens]
             nll += -float(np.sum(token_log_probs))
