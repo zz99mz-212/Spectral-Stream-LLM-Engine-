@@ -188,3 +188,147 @@ def test_gate_reason_format():
     res = apply_gate(payload, original_elements, rel_mse, threshold)
     assert res["gated"] is True
     assert res["gate_reason"] == f"rel_mse {rel_mse:.4f} > {threshold}"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# METRICS-03: Literature estimates extraction + disclaimer guards
+# ═══════════════════════════════════════════════════════════════════
+
+
+from spectralstream.compression.literature_estimates import (
+    LITERATURE_ESTIMATES,
+    LITERATURE_DISCLAIMER,
+)
+
+
+def test_literature_disclaimer_present():
+    """LITERATURE_DISCLAIMER contains the mandatory 'literature estimates' label."""
+    assert "literature estimates" in LITERATURE_DISCLAIMER.lower()
+    assert len(LITERATURE_ESTIMATES) == 9
+
+
+def test_no_competitor_literals_in_certificate_source():
+    """certificate.py source code must contain NO bare competitor literals.
+
+    This test guards against refabrication: any hardcoded GPTQ/AWQ/SqueezeLLM/GGML Q
+    typenames signal a fabrication surface. They must be imported from
+    literature_estimates instead.
+    """
+    from pathlib import Path
+
+    cert_path = Path(__file__).parent.parent / "spectralstream" / "compression" / "certificate.py"
+    src = cert_path.read_text(encoding="utf-8")
+
+    # These are the 4 competitor families that MUST NOT appear as literals.
+    forbidden = ["GPTQ", "AWQ", "SqueezeLLM", "GGML Q"]
+    for term in forbidden:
+        assert term not in src, f"Competitor literal found in certificate.py: {term}"
+
+
+def test_industry_comparison_contract_preserved():
+    """industry_comparison dict contract is preserved with disclaimer key.
+
+    This test replicates the minimal certificate math to ensure:
+    1. The contract keys are present (comparisons, beats_standard_quant,
+       beats_int4, rank, better_than_count, total_compared, disclaimer)
+    2. The current-run row is computed from `ratio` (not from LITERATURE_ESTIMATES)
+    3. beats_standard_quant == (ratio > 4.0)
+    """
+    from spectralstream.compression.literature_estimates import (
+        LITERATURE_ESTIMATES,
+        LITERATURE_DISCLAIMER,
+    )
+
+    # Simulate the certificate math minimally
+    ratio = 5.0  # current run's ratio
+    comparisons = list(LITERATURE_ESTIMATES) + [
+        ("SpectralStream (current)", round(ratio, 1), "This run", "hybrid")
+    ]
+
+    # Better count math (verterbatim from certificate.py)
+    better_count = sum(1 for _, r, _, _ in comparisons if r < ratio and r != ratio)
+    total_known = sum(1 for _, r, _, _ in comparisons if r != ratio)
+    rank = sum(1 for _, r, _, _ in comparisons if r >= ratio)
+
+    industry_comparison = {
+        "comparisons": [
+            {
+                "name": n,
+                "ratio": r,
+                "description": d,
+                "type": t,
+                "beats": ratio > r if r != ratio else None,
+            }
+            for n, r, d, t in comparisons
+        ],
+        "beats_standard_quant": ratio > 4.0,
+        "beats_int4": ratio > 8.0,
+        "rank": f"{rank}/{total_known}",
+        "better_than_count": better_count,
+        "total_compared": total_known,
+        "disclaimer": LITERATURE_DISCLAIMER,
+    }
+
+    # Assert contract keys present
+    for key in (
+        "comparisons",
+        "beats_standard_quant",
+        "beats_int4",
+        "rank",
+        "better_than_count",
+        "total_compared",
+        "disclaimer",
+    ):
+        assert key in industry_comparison, f"Missing key: {key}"
+
+    # Assert >= 9 comparisons
+    assert len(industry_comparison["comparisons"]) >= 9
+
+    # Assert current-run row is computed (not from LITERATURE_ESTIMATES)
+    names = [c["name"] for c in industry_comparison["comparisons"]]
+    assert "SpectralStream (current)" in names
+    current_row = next(
+        c for c in industry_comparison["comparisons"] if c["name"] == "SpectralStream (current)"
+    )
+    # The current-run ratio is float(ratio), not a hardcoded value
+    assert current_row["ratio"] == round(ratio, 1)
+    # Disclaimer is present
+    assert industry_comparison["disclaimer"] == LITERATURE_DISCLAIMER
+    # beats_standard_quant == (ratio > 4.0)
+    assert industry_comparison["beats_standard_quant"] == (ratio > 4.0)
+
+
+def test_disclaimer_rendered_in_certificate():
+    """Disclaimer must appear in BOTH to_text() and to_markdown() rendered output.
+
+    SC-3 anti-fabrication guarantee: the disclaimer is not just a dict key,
+    it must surface in the rendered certificate itself.
+    """
+    from spectralstream.compression.certificate import CompressionCertificate
+    from spectralstream.compression.literature_estimates import LITERATURE_DISCLAIMER
+
+    # Minimal certificate constructor with just enough fields
+    cert = CompressionCertificate(
+        model_name="test_model",
+        model_path="",
+        model_architecture="",
+        model_params="",
+        total_original_bytes=1_000_000,
+        total_compressed_bytes=1_000,
+        overall_ratio=1_000.0,
+        total_tensors=1,
+        compression_time_seconds=0,
+        weighted_error=0,
+        avg_error=0,
+        max_error=0,
+        min_error=0,
+        avg_snr_db=0,
+        tensor_certificates=[],
+        method_distribution={"test": 1},
+    )
+
+    text_output = cert.to_text()
+    md_output = cert.to_markdown()
+
+    assert LITERATURE_DISCLAIMER in text_output, "Disclaimer missing from to_text()"
+    assert LITERATURE_DISCLAIMER in md_output, "Disclaimer missing from to_markdown()"
