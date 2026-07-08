@@ -27,7 +27,11 @@ from spectralstream.compression.engine.world_model import (
     ModelCompressionStats,
 )
 from spectralstream.format.reader import SSFReader
-from spectralstream.compression.honest_metrics import dual_ratio, end_to_end_error
+from spectralstream.compression.honest_metrics import (
+    dual_ratio,
+    end_to_end_error,
+    apply_gate,
+)
 
 try:
     from spectralstream.compression.cli_dashboard import CompressionDashboard
@@ -843,9 +847,6 @@ def cmd_compress(args: argparse.Namespace) -> None:
                     original = io.read_tensor(
                         name, shape_i, dtype_i, offset_i, nbytes_i
                     )
-                    ratios = dual_ratio(original.size, data)
-                    honest_metrics_dict["ratio_vs_fp32"] = ratios["ratio_vs_fp32"]
-                    honest_metrics_dict["ratio_vs_bf16"] = ratios["ratio_vs_bf16"]
 
                     method_name = result.get("method", "")
                     if method_name:
@@ -863,6 +864,10 @@ def cmd_compress(args: argparse.Namespace) -> None:
                                 honest_metrics_dict["cosine_sim"] = err.cosine_sim
                                 honest_metrics_dict["max_abs"] = err.max_abs
                                 honest_metrics_dict["snr_db"] = err.snr_db
+                                # Gate the ratio through the central honesty chokepoint
+                                honest_metrics_dict.update(
+                                    apply_gate(data, original.size, err.rel_mse)
+                                )
                 except Exception as _hm_exc:
                     logger.debug("Honest metrics failed for %s: %s", name, _hm_exc)
 
