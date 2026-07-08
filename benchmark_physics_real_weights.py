@@ -10,6 +10,8 @@ import numpy as np
 
 sys.path.insert(0, ".")
 
+from eval.model_path import resolve_model_path
+
 from spectralstream.compression.engine.memory_mapped_engine import (
     MemoryMappedTensorEngine,
 )
@@ -30,12 +32,25 @@ class Timeout:
         signal.alarm(0)
 
 
+import argparse
+parser = argparse.ArgumentParser(
+    description="Physics-inspired compression on real Gemma-4 weights."
+)
+parser.add_argument(
+    "--model",
+    type=str,
+    default=None,
+    help="Path to model safetensors file. Overrides SPECTRALSTREAM_MODEL_PATH env var.",
+)
+args = parser.parse_args()
+
+
 print("=" * 90)
 print("PHYSICS-INSPIRED COMPRESSION ON REAL GEMMA-4 WEIGHTS")
 print("=" * 90)
 
 mmap = MemoryMappedTensorEngine(
-    "/home/mike/Documents/Github/SpectralStream/models/gemma-4-E2B/model.safetensors"
+    resolve_model_path(getattr(args, "model", None))
 )
 
 weights = []
