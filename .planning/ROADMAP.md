@@ -55,11 +55,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Model loading uses an env var / CLI arg instead of the hardcoded `/home/mike/.../gemma-4-E2B` path; README documents the required model for reproducing results.
   4. A recovery gate (`compressed/base ≥ configured threshold`) is enforced and reported in the eval artifact.
 
-**Plans**: 3 plans
+**Plans**: 2/3 plans executed
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — WikiText-2 perplexity grader with honest JSON artifact (EVAL-01)
-- [ ] 02-02-PLAN.md — BaseTokenizer byte-identity fallback and default tokenizer round-trip (EVAL-02)
+- [x] 02-01-PLAN.md — WikiText-2 perplexity grader with honest JSON artifact (EVAL-01)
+- [x] 02-02-PLAN.md — BaseTokenizer byte-identity fallback and default tokenizer round-trip (EVAL-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -162,7 +162,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Metrics Trust Loop | 3/3 | Complete    | 2026-07-08 |
-| 2. Eval Subsystem | 0/0 | Not started | - |
+| 2. Eval Subsystem | 2/3 | In Progress|  |
 | 3. Cascade Correction | 0/0 | Not started | - |
 | 4. Calibration & Neuroanatomy Foundation | 0/0 | Not started | - |
 | 5. Dynamic Reduction & Architecture Optimization | 0/0 | Not started | - |
