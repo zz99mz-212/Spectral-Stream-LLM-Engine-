@@ -13,6 +13,9 @@ Spectral-Stream v1 is an honesty-first consolidation of a pure-Python, CPU-targe
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Metrics Trust Loop** - Every reported ratio is error-gated and measured end-to-end; fabricated comparisons removed
+  - [ ] 01-01-PLAN.md — Walking skeleton: central `apply_gate` chokepoint + `serialized_nbytes` shapes test (METRICS-01, METRICS-04)
+  - [ ] 01-02-PLAN.md — Gate second CLI block + BF16-led summary with GATED marker (METRICS-01, METRICS-02)
+  - [ ] 01-03-PLAN.md — De-hardcode competitor constants into `literature_estimates.py`, delete orphaned JSON (METRICS-03)
 - [ ] **Phase 2: Eval Subsystem** - Reproducible WikiText-2 perplexity proves quality is preserved on real weights
 - [ ] **Phase 3: Cascade Correction** - Flagship 5-stage cascade fixed to honest error bounds or honestly scoped as experimental
 - [ ] **Phase 4: Calibration & Neuroanatomy Foundation** - Torch-free activation capture enables real-weight importance scoring and neuroanatomy profiling
@@ -33,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. All ratio reporting flows through `serialized_nbytes()` (byte-exact); `ratio_vs_disk` (BF16) is the default headline and `ratio_vs_fp32` appears only as a secondary annotation.
   3. `benchmark_industry_comparison.json` and `certificate.py` (lines ~440-463) contain no hardcoded competitor constants; any external reference is labeled "literature estimates, not measured here."
   4. `tests/test_honest_metrics.py` exists and passes — asserting ratio↔error coupling, rejection of over-threshold methods, and `serialized_nbytes` handling all payload shapes.
-**Plans**: TBD
+**Plans**: 3 plans
 
 ### Phase 2: Eval Subsystem
 **Goal**: A reproducible, independent eval subsystem proves quality is preserved by measuring WikiText-2 perplexity on original vs compressed weights, closing the project's single biggest trust gap.
@@ -125,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Metrics Trust Loop | 0/0 | Not started | - |
+| 1. Metrics Trust Loop | 0/3 | Not started | - |
 | 2. Eval Subsystem | 0/0 | Not started | - |
 | 3. Cascade Correction | 0/0 | Not started | - |
 | 4. Calibration & Neuroanatomy Foundation | 0/0 | Not started | - |
