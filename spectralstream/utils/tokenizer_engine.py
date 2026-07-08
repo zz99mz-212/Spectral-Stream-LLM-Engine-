@@ -131,10 +131,10 @@ class BaseTokenizer:
         self._vocab_size = val
 
     def encode(self, text: str) -> list[int]:
-        raise NotImplementedError
+        return list(text.encode("utf-8"))
 
     def decode(self, token_ids: list[int]) -> str:
-        raise NotImplementedError
+        return bytes(int(t) & 0xFF for t in token_ids).decode("utf-8", errors="replace")
 
     def __call__(self, text: str) -> list[int]:
         return self.encode(text)
