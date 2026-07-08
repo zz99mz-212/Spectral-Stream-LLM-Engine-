@@ -31,15 +31,15 @@ Capabilities that work on real weights or are structurally sound:
 - ✓ **Streaming/chunked/memory-mapped compressors** — Memory-bounded execution for large tensors
 - ✓ **Pure-Python GGUF weight dequantizer** — Imports GGUF models without llama.cpp dependency
 - ✓ **CLI dashboards** — Rich terminal dashboards, progress bars, tables
+- ✓ **Error-gated ratio emission (`apply_gate`)** — Validated in Phase 01 (METRICS-01): high-error methods (`rel_mse > 0.05`) emit no ratio (gated: `ratio_vs_bf16:None`), good methods keep byte-exact `ratio_vs_bf16`/`ratio_vs_fp32` via `serialized_nbytes`
+- ✓ **BF16 as headline ratio** — Validated in Phase 01 (METRICS-02): CLI summary leads with `ratio_vs_disk` (BF16), demotes FP32 to secondary, filters gated tensors from means, emits a GATED marker
+- ✓ **Honest competitor comparison** — Validated in Phase 01 (METRICS-03): 9 competitor constants extracted to `literature_estimates.py` labeled "literature estimates, not measured here"; `certificate.py` is a pure consumer; orphaned `benchmark_industry_comparison.json` deleted
+- ✓ **honest_metrics unit tests** — Validated in Phase 01 (METRICS-04): `tests/test_honest_metrics.py` asserts ratio↔error coupling, strict-`>` boundary, all `serialized_nbytes` payload shapes, BF16 headline, gated-None
 
 ### Active
 
 v1 scope: fix honesty gaps AND consolidate the core. All items are hypotheses until shipped.
 
-- [ ] **METRICS-01**: Error-gate all reported ratios — a method with `rel_mse > threshold` must not report a ratio as if it succeeded (fixes BUG-02)
-- [ ] **METRICS-02**: Make `ratio_vs_disk` (BF16) the default headline number; demote `ratio_vs_fp32` to secondary (fixes BUG-03)
-- [ ] **METRICS-03**: Replace fabricated industry comparison in `benchmark_industry_comparison.json` and `certificate.py` with either real measurements or explicit "literature estimates, not measured here" labels (fixes SEC-03)
-- [ ] **METRICS-04**: Add dedicated unit tests for `honest_metrics.py` — assert ratio↔error coupling, reject methods above error threshold, verify `serialized_nbytes` handles all payload shapes (fixes COV-03)
 - [ ] **CASCADE-01**: Fix the 5-stage cascade to produce `rel_mse < 0.05` on real weight slices, or remove it as a default/headline method until it does (fixes BUG-01)
 - [ ] **CASCADE-02**: Wire stages 3–5 or update documentation to honestly state that only stages 1–2 are live
 - [ ] **REGISTRY-01**: Split the 2,964-method registry into a validated active set (methods with tests + real-weight results) versus a labeled `experimental/` namespace (fixes TD-01)
@@ -114,4 +114,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-08 after project initialization*
+*Last updated: 2026-07-08 after Phase 1 (Metrics Trust Loop) completion*
