@@ -33,4 +33,7 @@ DEFAULT_SAMPLE_TXT: str = "eval/data/wikitext2_sample.txt"
 """Committed raw WikiText-2 sample text (for transparency)."""
 
 DEFAULT_SAMPLE_TOKENS: str = "eval/data/wikitext2_sample.tokens.json"
-"""Committed pre-tokenized WikiText-2 sample (byte-level token ids)."""
+"""Committed pre-tokenized WikiText-2 sample using the byte-level default
+tokenizer (vocab_size=256). NOT a model-native tokenization; for
+model-faithful PPL, supply a real tokenizer via ``--tokenizer`` and raw
+text via ``--corpus``. See ``eval/data/README.md`` for details."""
