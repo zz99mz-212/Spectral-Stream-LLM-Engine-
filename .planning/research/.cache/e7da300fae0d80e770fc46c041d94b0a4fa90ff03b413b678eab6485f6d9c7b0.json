@@ -1,0 +1,1 @@
+{"content":"lm-eval-harness EleutherAI v0.4.9 gold-standard eval. Compression quality = perplexity delta on WikiText2/C4 + zero-shot MMLU. INT4 acceptable loss <0.1-0.2 PPL vs FP16. Project needs WikiText2 perplexity eval (EVAL-01).","source":"web","provider":"exa","confidence":"HIGH","fetched_at":"2026-07-08T15:50:29.738Z","ttl":86400000,"kind":"web"}
