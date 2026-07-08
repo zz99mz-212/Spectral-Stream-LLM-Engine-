@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 
 from eval.artifact import write_artifact
@@ -25,6 +26,7 @@ from eval.constants import DEFAULT_SEQ_LEN, DEFAULT_STRIDE, RECOVERY_GATE_THRESH
 from eval.corpus import resolve_corpus
 from eval.grader import grade
 from eval.model_path import resolve_model_path
+from spectralstream.utils.tokenizer_engine import AutoTokenizer, build_default_tokenizer
 
 logger = logging.getLogger("spectralstream.eval")
 
@@ -110,11 +112,37 @@ def main(argv: list[str] | None = None) -> int:
 
         # Resolve corpus
         logger.info("Loading corpus...")
-        test_tokens = resolve_corpus(args.corpus)
-        logger.info("  %d tokens loaded", len(test_tokens))
 
-        # Tokenizer name
-        tokenizer_name = args.tokenizer if args.tokenizer else "default"
+        # Load tokenizer: model-native if --tokenizer supplied, byte-level default otherwise
+        if args.tokenizer is None:
+            tokenizer = build_default_tokenizer()
+            tokenizer_name = "default"
+        elif args.tokenizer.endswith(".gguf"):
+            try:
+                tokenizer = AutoTokenizer.from_gguf(args.tokenizer)
+                tokenizer_name = f"auto_from_gguf:{os.path.basename(args.tokenizer)}"
+            except Exception:
+                logger.warning(
+                    "Failed to load GGUF tokenizer from %s, falling back to default",
+                    args.tokenizer,
+                )
+                tokenizer = build_default_tokenizer()
+                tokenizer_name = "default"
+        else:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+                tokenizer_name = f"auto_from_pretrained:{os.path.basename(args.tokenizer)}"
+            except Exception:
+                logger.warning(
+                    "Failed to load tokenizer from %s, falling back to default",
+                    args.tokenizer,
+                )
+                tokenizer = build_default_tokenizer()
+                tokenizer_name = "default"
+
+        logger.info("Tokenizer: %s", tokenizer_name)
+        test_tokens = resolve_corpus(args.corpus, tokenizer=tokenizer)
+        logger.info("  %d tokens loaded", len(test_tokens))
 
         # Method name from compressed filename
         method_name = "ssf"
