@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   - [x] 01-01-PLAN.md — Walking skeleton: central `apply_gate` chokepoint + `serialized_nbytes` shapes test (METRICS-01, METRICS-04)
   - [x] 01-02-PLAN.md — Gate second CLI block + BF16-led summary with GATED marker (METRICS-01, METRICS-02)
   - [x] 01-03-PLAN.md — De-hardcode competitor constants into `literature_estimates.py`, delete orphaned JSON (METRICS-03)
-- [ ] **Phase 2: Eval Subsystem** - Reproducible WikiText-2 perplexity proves quality is preserved on real weights
+- [x] **Phase 2: Eval Subsystem** - Reproducible WikiText-2 perplexity proves quality is preserved on real weights (completed 2026-07-08)
 - [ ] **Phase 3: Cascade Correction** - Flagship 5-stage cascade fixed to honest error bounds or honestly scoped as experimental
 - [ ] **Phase 4: Calibration & Neuroanatomy Foundation** - Torch-free activation capture enables real-weight importance scoring and neuroanatomy profiling
 - [ ] **Phase 5: Dynamic Reduction & Architecture Optimization** - Per-layer importance drives adaptive compression; math-primitive exploration
@@ -55,7 +55,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Model loading uses an env var / CLI arg instead of the hardcoded `/home/mike/.../gemma-4-E2B` path; README documents the required model for reproducing results.
   4. A recovery gate (`compressed/base ≥ configured threshold`) is enforced and reported in the eval artifact.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans complete
 **Wave 1**
 
 - [x] 02-01-PLAN.md — WikiText-2 perplexity grader with honest JSON artifact (EVAL-01)
@@ -63,7 +63,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-03-PLAN.md — Parameterize model paths and document required model in README (EVAL-03)
+- [x] 02-03-PLAN.md — Parameterize model paths and document required model in README (EVAL-03)
 
 ### Phase 3: Cascade Correction
 
@@ -162,7 +162,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Metrics Trust Loop | 3/3 | Complete    | 2026-07-08 |
-| 2. Eval Subsystem | 2/3 | In Progress|  |
+| 2. Eval Subsystem | 3/3 | Complete   | 2026-07-08 |
 | 3. Cascade Correction | 0/0 | Not started | - |
 | 4. Calibration & Neuroanatomy Foundation | 0/0 | Not started | - |
 | 5. Dynamic Reduction & Architecture Optimization | 0/0 | Not started | - |
