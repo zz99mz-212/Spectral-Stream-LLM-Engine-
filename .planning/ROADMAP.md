@@ -55,7 +55,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Model loading uses an env var / CLI arg instead of the hardcoded `/home/mike/.../gemma-4-E2B` path; README documents the required model for reproducing results.
   4. A recovery gate (`compressed/base ≥ configured threshold`) is enforced and reported in the eval artifact.
 
-**Plans**: 3/3 plans complete
+**Plans**: 4/4 plans complete
 **Wave 1**
 
 - [x] 02-01-PLAN.md — WikiText-2 perplexity grader with honest JSON artifact (EVAL-01)
@@ -64,6 +64,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 02-03-PLAN.md — Parameterize model paths and document required model in README (EVAL-03)
+- [x] 02-04-PLAN.md — Wire model-native tokenizer into eval (D-02 gap closure)
 
 ### Phase 3: Cascade Correction
 

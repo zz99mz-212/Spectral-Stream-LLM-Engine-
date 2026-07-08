@@ -27,9 +27,9 @@ Fix or honestly scope the project's headline feature.
 
 The single biggest trust gap — without perplexity or downstream-task evaluation, "quality preserved" is an unsubstantiated claim.
 
-- [ ] **EVAL-01**: Implement and publish at least one real downstream eval — WikiText-2 perplexity (seq len 2048) comparing original FP16 model vs compressed model; produce a verifiable JSON artifact (fixes MISS-01)
-- [ ] **EVAL-02**: Fix `BaseTokenizer.encode` to not raise `NotImplementedError`; ship one working default tokenizer; add test (fixes BUG-04, MISS-02)
-- [ ] **EVAL-03**: Replace hardcoded absolute model path (`/home/mike/.../gemma-4-E2B`) with env/CLI arg; document required model for reproducing results (fixes SEC-02)
+- [x] **EVAL-01**: Implement and publish at least one real downstream eval — WikiText-2 perplexity (seq len 2048) comparing original FP16 model vs compressed model; produce a verifiable JSON artifact (fixes MISS-01)
+- [x] **EVAL-02**: Fix `BaseTokenizer.encode` to not raise `NotImplementedError`; ship one working default tokenizer; add test (fixes BUG-04, MISS-02)
+- [x] **EVAL-03**: Replace hardcoded absolute model path (`/home/mike/.../gemma-4-E2B`) with env/CLI arg; document required model for reproducing results (fixes SEC-02)
 
 ### Registry & Depth Reduction
 
@@ -90,9 +90,9 @@ Deferred to future releases. Tracked but not in current roadmap.
 | METRICS-04 | Phase 1 (Metrics Trust Loop) | ✅ Complete (Plan 01-01) |
 | CASCADE-01 | Phase 3 (Cascade Correction) | Pending |
 | CASCADE-02 | Phase 3 (Cascade Correction) | Pending |
-| EVAL-01 | Phase 2 (Eval Subsystem) | Pending |
-| EVAL-02 | Phase 2 (Eval Subsystem) | Pending |
-| EVAL-03 | Phase 2 (Eval Subsystem) | Pending |
+| EVAL-01 | Phase 2 (Eval Subsystem) | ✅ Complete (Plans 02-01, 02-04) |
+| EVAL-02 | Phase 2 (Eval Subsystem) | ✅ Complete (Plans 02-02, 02-04) |
+| EVAL-03 | Phase 2 (Eval Subsystem) | ✅ Complete (Plan 02-03) |
 | REGISTRY-01 | Phase 6 (Registry & Depth Reduction) | Pending |
 | REGISTRY-02 | Phase 6 (Registry & Depth Reduction) | Pending |
 | FORMAT-01 | Phase 7 (Format Transparency) | Pending |
