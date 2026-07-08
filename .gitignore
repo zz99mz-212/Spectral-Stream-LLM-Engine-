@@ -5,4 +5,5 @@ __pycache__/
 intelligence/index/audit_log.json
 .pytest_cache/
 .ruff_cache
-models/
+models/# GSD research cache
+.planning/research/.cache/
