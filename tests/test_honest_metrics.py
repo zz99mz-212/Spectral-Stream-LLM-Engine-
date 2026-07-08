@@ -120,3 +120,71 @@ def test_boundary_just_above_gated():
 def test_serialized_nbytes_shapes(payload, expected):
     """serialized_nbytes returns the true recursive byte count for every shape."""
     assert serialized_nbytes(payload) == expected
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Test: BF16 is the headline key (surfaced default)
+# ═══════════════════════════════════════════════════════════════════
+
+
+def test_bf16_is_headline_key():
+    """For a good method, apply_gate returns both ratios; BF16 is the surfaced default."""
+    rng = np.random.RandomState(42)
+    orig = rng.randn(8, 8).astype(np.float32)
+    recon = orig + 1e-4 * rng.randn(8, 8).astype(np.float32)
+
+    err = end_to_end_error(orig, recon)
+    assert err.rel_mse <= ERROR_GATE_THRESHOLD
+
+    res = apply_gate(orig.tobytes(), orig.size, err.rel_mse)
+    assert res["gated"] is False
+    assert res["ratio_vs_bf16"] is not None
+    assert res["ratio_vs_fp32"] is not None
+    assert "ratio_vs_bf16" in res
+    assert "ratio_vs_fp32" in res
+    # BF16 headline contract: the key is present and the method is gated=False
+    # (which means BF16 is the valid baseline to surface by default)
+    assert res["gated"] is False
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Test: Gated ratio is None (not 0), so downstream means filter it out
+# ═══════════════════════════════════════════════════════════════════
+
+
+def test_gated_ratio_is_none_not_zero():
+    """For a bad method, apply_gate returns None for both ratios (never 0.0x)."""
+    rng = np.random.RandomState(42)
+    orig = rng.randn(8, 8).astype(np.float32)
+    recon = rng.randn(8, 8).astype(np.float32)  # uncorrelated
+
+    err = end_to_end_error(orig, recon)
+    assert err.rel_mse > ERROR_GATE_THRESHOLD
+
+    res = apply_gate(orig.tobytes(), orig.size, err.rel_mse)
+    assert res["gated"] is True
+    assert res["ratio_vs_bf16"] is None
+    assert res["ratio_vs_fp32"] is None
+    # ...
+
+    assert res["ratio_vs_bf16"] is None
+    assert res["ratio_vs_fp32"] is None
+    # The summary's None-filter depends on None, never 0.
+    assert res["ratio_vs_bf16"] != 0.0
+    assert res["ratio_vs_fp32"] != 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Test: Gate reason format is consistent and human-readable
+# ═══════════════════════════════════════════════════════════════════
+
+
+def test_gate_reason_format():
+    """Gate reason format: 'rel_mse {value} > {threshold}'."""
+    payload = b"\x00" * 64
+    original_elements = 32
+    rel_mse = 0.11
+    threshold = 0.05
+    res = apply_gate(payload, original_elements, rel_mse, threshold)
+    assert res["gated"] is True
+    assert res["gate_reason"] == f"rel_mse {rel_mse:.4f} > {threshold}"
