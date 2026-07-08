@@ -11,10 +11,10 @@ Requirements for initial consolidation release. Each maps to roadmap phases.
 
 Foundational honesty infrastructure. Fixes the broken relationship between ratio and error that made BUG-02 and the fabricated comparison possible.
 
-- [ ] **METRICS-01**: Error-gate every reported compression ratio — a method with `rel_mse > threshold` must not emit a ratio as if it succeeded (fixes BUG-02)
-- [ ] **METRICS-02**: Make `ratio_vs_disk` (BF16 baseline) the default headline; demote `ratio_vs_fp32` to secondary annotation (fixes BUG-03)
-- [ ] **METRICS-03**: Replace fabricated industry comparisons in `benchmark_industry_comparison.json` and `certificate.py:440-463` — remove hardcoded GPTQ/AWQ/GGUF constants; label any external reference as "literature estimates, not measured here" (fixes SEC-03)
-- [ ] **METRICS-04**: Add `tests/test_honest_metrics.py` — assert ratio↔error coupling, reject methods above error threshold, verify `serialized_nbytes` handles all payload shapes (fixes COV-03)
+- [x] **METRICS-01**: Error-gate every reported compression ratio — a method with `rel_mse > threshold` must not emit a ratio as if it succeeded (fixes BUG-02)
+- [x] **METRICS-02**: Make `ratio_vs_disk` (BF16 baseline) the default headline; demote `ratio_vs_fp32` to secondary annotation (fixes BUG-03)
+- [x] **METRICS-03**: Replace fabricated industry comparisons in `benchmark_industry_comparison.json` and `certificate.py:440-463` — remove hardcoded GPTQ/AWQ/GGUF constants; label any external reference as "literature estimates, not measured here" (fixes SEC-03)
+- [x] **METRICS-04**: Add `tests/test_honest_metrics.py` — assert ratio↔error coupling, reject methods above error threshold, verify `serialized_nbytes` handles all payload shapes (fixes COV-03)
 
 ### Cascade Correction
 
@@ -85,8 +85,8 @@ Deferred to future releases. Tracked but not in current roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | METRICS-01 | Phase 1 (Metrics Trust Loop) | ✅ Complete (Plan 01-01) |
-| METRICS-02 | Phase 1 (Metrics Trust Loop) | Pending |
-| METRICS-03 | Phase 1 (Metrics Trust Loop) | Pending |
+| METRICS-02 | Phase 1 (Metrics Trust Loop) | Complete |
+| METRICS-03 | Phase 1 (Metrics Trust Loop) | Complete |
 | METRICS-04 | Phase 1 (Metrics Trust Loop) | ✅ Complete (Plan 01-01) |
 | CASCADE-01 | Phase 3 (Cascade Correction) | Pending |
 | CASCADE-02 | Phase 3 (Cascade Correction) | Pending |
@@ -109,6 +109,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | CI-01 (v2) | — | Deferred |
 
 **Coverage:**
+
 - v1 requirements: 19 total
 - Mapped to phases: 19
 - Unmapped: 0 ✓ (100% coverage)
