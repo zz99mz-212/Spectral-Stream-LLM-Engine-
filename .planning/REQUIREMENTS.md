@@ -84,25 +84,25 @@ Deferred to future releases. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| METRICS-01 | TBD | Pending |
-| METRICS-02 | TBD | Pending |
-| METRICS-03 | TBD | Pending |
-| METRICS-04 | TBD | Pending |
-| CASCADE-01 | TBD | Pending |
-| CASCADE-02 | TBD | Pending |
-| EVAL-01 | TBD | Pending |
-| EVAL-02 | TBD | Pending |
-| EVAL-03 | TBD | Pending |
-| REGISTRY-01 | TBD | Pending |
-| REGISTRY-02 | TBD | Pending |
-| FORMAT-01 | TBD | Pending |
-| FORMAT-02 | TBD | Pending |
-| DOCS-01 | TBD | Pending |
-| DOCS-02 | TBD | Pending |
-| RND-01 | TBD | Pending |
-| RND-02 | TBD | Pending |
-| RND-03 | TBD | Pending |
-| RND-04 | TBD | Pending |
+| METRICS-01 | Phase 1 (Metrics Trust Loop) | Pending |
+| METRICS-02 | Phase 1 (Metrics Trust Loop) | Pending |
+| METRICS-03 | Phase 1 (Metrics Trust Loop) | Pending |
+| METRICS-04 | Phase 1 (Metrics Trust Loop) | Pending |
+| CASCADE-01 | Phase 3 (Cascade Correction) | Pending |
+| CASCADE-02 | Phase 3 (Cascade Correction) | Pending |
+| EVAL-01 | Phase 2 (Eval Subsystem) | Pending |
+| EVAL-02 | Phase 2 (Eval Subsystem) | Pending |
+| EVAL-03 | Phase 2 (Eval Subsystem) | Pending |
+| REGISTRY-01 | Phase 6 (Registry & Depth Reduction) | Pending |
+| REGISTRY-02 | Phase 6 (Registry & Depth Reduction) | Pending |
+| FORMAT-01 | Phase 7 (Format Transparency) | Pending |
+| FORMAT-02 | Phase 7 (Format Transparency) | Pending |
+| DOCS-01 | Phase 8 (Documentation & Honest Framing) | Pending |
+| DOCS-02 | Phase 8 (Documentation & Honest Framing) | Pending |
+| RND-01 | Phase 4 (Calibration & Neuroanatomy Foundation) | Pending |
+| RND-02 | Phase 4 (Calibration & Neuroanatomy Foundation) | Pending |
+| RND-03 | Phase 5 (Dynamic Reduction & Architecture Optimization) | Pending |
+| RND-04 | Phase 5 (Dynamic Reduction & Architecture Optimization) | Pending |
 | INT4-01 (v2) | — | Deferred |
 | INF-01 (v2) | — | Deferred |
 | GGUF-01 (v2) | — | Deferred |
@@ -110,8 +110,8 @@ Deferred to future releases. Tracked but not in current roadmap.
 
 **Coverage:**
 - v1 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 ⚠️ (roadmap will map these)
+- Mapped to phases: 19
+- Unmapped: 0 ✓ (100% coverage)
 
 ---
 *Requirements defined: 2026-07-08*
