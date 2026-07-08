@@ -48,11 +48,8 @@ def test_recovery_ratio_custom_threshold():
     from eval.artifact import compute_recovery_ratio
 
     ratio, passed = compute_recovery_ratio(10.0, 12.0, threshold=0.9)
-    assert ratio == pytest.approx(10.0 / 12.0)
-    assert passed is True  # 0.833 >= 0.9? No, 0.833 < 0.9
-    # Actually 10/12 ≈ 0.833 which is < 0.9
-    # Let's check: 0.833 >= 0.9? No.
-    assert passed is False
+    assert ratio == pytest.approx(10.0 / 12.0)  # ≈ 0.833
+    assert passed is False  # 0.833 < 0.9, so gate fails
 
     ratio2, passed2 = compute_recovery_ratio(10.0, 11.0, threshold=0.9)
     # 10/11 ≈ 0.909 >= 0.9, should pass
@@ -167,7 +164,10 @@ def test_write_artifact_default_dir():
 
     artifact = {"model": "test", "base_ppl": 10.0}
     result = write_artifact(artifact)
-    assert result.startswith("eval/artifacts/")
+    # Normalise path separators for cross-platform comparison
+    import os as _os
+    expected_prefix = _os.path.normpath("eval/artifacts/")
+    assert _os.path.normpath(result).startswith(expected_prefix)
     assert result.endswith(".json")
     # Clean up
     if os.path.exists(result):
@@ -185,6 +185,8 @@ def test_run_ppl_closes_pipeline():
     mock_pipe = MagicMock()
     mock_pipe.measure_perplexity.return_value = 12.345
     mock_pipe.tensor_names = ["layer_0", "layer_1", "layer_2"]
+    # Context manager returns self
+    mock_pipe.__enter__.return_value = mock_pipe
 
     with patch("eval.grader.InferencePipeline", return_value=mock_pipe):
         ppl, layers = run_ppl(
@@ -214,10 +216,12 @@ def test_grade_identical_windowing():
     mock_pipe_base = MagicMock()
     mock_pipe_base.measure_perplexity.return_value = 10.0
     mock_pipe_base.tensor_names = ["l0", "l1"]  # 2 layers
+    mock_pipe_base.__enter__.return_value = mock_pipe_base
 
     mock_pipe_compressed = MagicMock()
     mock_pipe_compressed.measure_perplexity.return_value = 10.5
     mock_pipe_compressed.tensor_names = ["l0", "l1"]
+    mock_pipe_compressed.__enter__.return_value = mock_pipe_compressed
 
     with patch("eval.grader.InferencePipeline") as mock_cls:
         # First call returns base pipe, second returns compressed pipe
@@ -260,6 +264,7 @@ def test_layers_loaded_is_nonzero():
     mock_pipe = MagicMock()
     mock_pipe.measure_perplexity.return_value = 15.0
     mock_pipe.tensor_names = [f"layer_{i}" for i in range(130)]
+    mock_pipe.__enter__.return_value = mock_pipe
 
     with patch("eval.grader.InferencePipeline", return_value=mock_pipe):
         ppl, layers = run_ppl(
@@ -343,6 +348,7 @@ def test_run_ppl_handles_empty_tokens():
     # measure_perplexity returns inf for degenerate input
     mock_pipe.measure_perplexity.return_value = float("inf")
     mock_pipe.tensor_names = ["l0"]
+    mock_pipe.__enter__.return_value = mock_pipe
 
     with patch("eval.grader.InferencePipeline", return_value=mock_pipe):
         ppl, layers = run_ppl(
