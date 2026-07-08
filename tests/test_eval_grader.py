@@ -10,6 +10,14 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
+# ── Test helper: custom tokenizer stub ──────────────────────────────────
+
+
+class _RawTextTokenizer:
+    """Minimal tokenizer stub returning a sentinel list for testing."""
+    def encode(self, text: str) -> list[int]:
+        return [999, 998, 997]
+
 import numpy as np
 import pytest
 
@@ -360,3 +368,168 @@ def test_run_ppl_handles_empty_tokens():
 
     assert ppl == float("inf")
     assert layers == 1
+
+
+# ── Test: model tokenizer actually used (D-02 gap closure) ──────────────
+
+
+def test_resolve_corpus_uses_injected_tokenizer_for_raw_text():
+    """resolve_corpus honors an injected tokenizer for raw text input."""
+    from eval.corpus import resolve_corpus
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("sample text for encoding")
+        txt_path = f.name
+
+    try:
+        result = resolve_corpus(corpus_path=txt_path, tokenizer=_RawTextTokenizer())
+        assert result == [999, 998, 997]
+    finally:
+        os.unlink(txt_path)
+
+
+def test_resolve_corpus_json_path_ignores_tokenizer():
+    """resolve_corpus ignores the tokenizer argument for .json paths."""
+    from eval.corpus import resolve_corpus
+
+    tokens = [1, 2, 3]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(tokens, f)
+        json_path = f.name
+
+    try:
+        result = resolve_corpus(corpus_path=json_path, tokenizer=_RawTextTokenizer())
+        assert result == [1, 2, 3]
+    finally:
+        os.unlink(json_path)
+
+
+def test_resolve_corpus_raw_text_default_uses_byte_level():
+    """resolve_corpus with tokenizer=None uses byte-level fallback."""
+    from eval.corpus import resolve_corpus
+    from spectralstream.utils.tokenizer_engine import build_default_tokenizer
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("hello world")
+        txt_path = f.name
+
+    try:
+        result = resolve_corpus(corpus_path=txt_path, tokenizer=None)
+        expected = build_default_tokenizer().encode("hello world")
+        assert result == expected
+    finally:
+        os.unlink(txt_path)
+
+
+def test_run_eval_loads_tokenizer_from_pretrained():
+    """main() calls AutoTokenizer.from_pretrained with --tokenizer path."""
+    from eval.run_eval import main
+
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.encode.return_value = [1, 2, 3]
+
+    with (
+        patch(
+            "spectralstream.utils.tokenizer_engine.AutoTokenizer.from_pretrained",
+            return_value=mock_tokenizer,
+        ) as mock_from_pretrained,
+        patch("eval.run_eval.resolve_model_path", return_value="/fake/model.safetensors"),
+        patch("eval.run_eval.resolve_corpus", return_value=[1, 2, 3]) as mock_resolve_corpus,
+        patch(
+            "eval.run_eval.grade",
+            return_value={
+                "base_ppl": 10.0,
+                "compressed_ppl": 10.5,
+                "recovery_ratio": 0.952,
+                "gate_passed": True,
+                "layers_loaded": 130,
+            },
+        ),
+        patch("eval.run_eval.write_artifact", return_value="/fake/artifact.json"),
+    ):
+        result = main(
+            [
+                "--model",
+                "/fake/base.safetensors",
+                "--compressed",
+                "/fake/compressed.ssf",
+                "--tokenizer",
+                "/fake/tokenizer.json",
+            ]
+        )
+
+    assert result == 0
+    mock_from_pretrained.assert_called_once_with("/fake/tokenizer.json")
+    # Verify resolve_corpus received the injected tokenizer (not None)
+    _, kwargs = mock_resolve_corpus.call_args
+    assert kwargs.get("tokenizer") is not None
+
+
+def test_run_eval_loads_tokenizer_from_gguf():
+    """main() calls AutoTokenizer.from_gguf with --tokenizer .gguf path."""
+    from eval.run_eval import main
+
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.encode.return_value = [1, 2, 3]
+
+    with (
+        patch(
+            "spectralstream.utils.tokenizer_engine.AutoTokenizer.from_gguf",
+            return_value=mock_tokenizer,
+        ) as mock_from_gguf,
+        patch("eval.run_eval.resolve_model_path", return_value="/fake/model.safetensors"),
+        patch("eval.run_eval.resolve_corpus", return_value=[1, 2, 3]),
+        patch(
+            "eval.run_eval.grade",
+            return_value={
+                "base_ppl": 10.0,
+                "compressed_ppl": 10.5,
+                "recovery_ratio": 0.952,
+                "gate_passed": True,
+                "layers_loaded": 130,
+            },
+        ),
+        patch("eval.run_eval.write_artifact", return_value="/fake/artifact.json"),
+    ):
+        result = main(
+            [
+                "--model",
+                "/fake/base.safetensors",
+                "--compressed",
+                "/fake/compressed.ssf",
+                "--tokenizer",
+                "/fake/model.gguf",
+            ]
+        )
+
+    assert result == 0
+    mock_from_gguf.assert_called_once_with("/fake/model.gguf")
+
+
+def test_run_eval_omitted_tokenizer_uses_default():
+    """main() without --tokenizer does NOT call AutoTokenizer loaders."""
+    from eval.run_eval import main
+
+    with (
+        patch("spectralstream.utils.tokenizer_engine.AutoTokenizer.from_pretrained"),
+        patch("spectralstream.utils.tokenizer_engine.AutoTokenizer.from_gguf"),
+        patch("eval.run_eval.resolve_model_path", return_value="/fake/model.safetensors"),
+        patch("eval.run_eval.resolve_corpus", return_value=[1, 2, 3]) as mock_resolve_corpus,
+        patch(
+            "eval.run_eval.grade",
+            return_value={
+                "base_ppl": 10.0,
+                "compressed_ppl": 10.5,
+                "recovery_ratio": 0.952,
+                "gate_passed": True,
+                "layers_loaded": 130,
+            },
+        ),
+        patch("eval.run_eval.write_artifact", return_value="/fake/artifact.json"),
+    ):
+        result = main(["--model", "/fake/base.safetensors", "--compressed", "/fake/compressed.ssf"])
+
+    assert result == 0
+    # resolve_corpus should receive a tokenizer argument (with tokenizer=None it defaults)
+    _, kwargs = mock_resolve_corpus.call_args
+    assert "tokenizer" in kwargs
