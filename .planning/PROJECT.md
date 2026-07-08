@@ -2,71 +2,99 @@
 
 ## What This Is
 
-Spectral-Stream is a **pure-Python (NumPy/SciPy, no real C++), CPU-targeted LLM weight-compression and KV-cache compression engine** that also runs as a local, OpenAI-compatible inference server. It compresses model weights by treating them as continuous manifolds / spectral fields / physical systems and removing redundant structure through a registry of ~3,000 candidate methods, then serves the compressed model on consumer hardware. Status: **ACTIVE R&D — NOT PRODUCTION READY** (AGPL-3.0).
+A pure-Python (NumPy/SciPy, no C++), CPU-targeted LLM weight & KV-cache compression engine that doubles as a local OpenAI-compatible inference server. Its thesis: instead of compressing weights as flat tensors, treat them as continuous manifolds / spectral fields / physical systems and exploit multiple redundancy sources (low-rank, spectral decay, cross-layer correlation, entropy, physics symmetries) through a cascade of independent methods.
+
+The engine delivers **~4–6× compression vs FP32 (≈2–3× vs BF16)** on real LLM weights via its verified INT8/INT4 quantization path. A broad registry of 2,964 methods across 43 categories exists as an explicit, labeled **research catalog** — most are aspirational or unvalidated on real weights. The project's energy is split between (1) maintaining an honest, reliable compression core, and (2) actively exploring activation-based pruning, LLM neuroanatomy, per-layer importance analysis and dynamic reduction, and deeper architecture / math optimizations.
+
+**🔬 ACTIVE R&D — NOT PRODUCTION READY.** License: AGPL-3.0.
 
 ## Core Value
 
-**Compress real LLM weights honestly and run them on CPU** — every reported ratio and error must be a measured, byte-exact end-to-end number, never an estimate or a hardcoded constant.
+**Honest compression that actually works on real weights.** The metric that matters is byte-exact ratio + paired error — never one without the other — and every advertised number must be verifiably measured, not estimated or aspirational. The research catalog lives alongside this core, but the default advertised capability tells the truth about what works today.
 
 ## Requirements
 
 ### Validated
 
-_(Inferred from the existing codebase — `spectralstream/` + the committed map in `.planning/codebase/`.)_
+Capabilities that work on real weights or are structurally sound:
 
-- ✓ **Method-registry compression engine** — `CompressionIntelligenceEngine` (`compression/engine/_orchestrator.py:206`) profiles → allocates → selects → compresses → validates over a 2,964-method registry across 43 categories (`compression/methods/`).
-- ✓ **Working quantization path** — `block_int8` / `block_int4` / Hadamard-int8 + entropy coding delivers the only verified result: **~4–6× vs FP32 (≈2–3× vs BF16) on real Gemma-4 E2B weights** with 2.3–34% error by bit-width (`run_full_model_honest_results.json`, `final_benchmark_results.json`).
-- ✓ **5-stage cascade framework** — `FiveStageCascade` (`compression/cascade_5stage.py:652`) defines EinSort → TT-SVD → Sparse → Ergodic → SIREN (currently only stages 1–2 are wired).
-- ✓ **Honest-metrics layer** — `honest_metrics.py` provides byte-exact `serialized_nbytes()`, `end_to_end_error()`, `dual_ratio()` and `ErrorMetrics(rel_mse, cosine_sim, max_abs, snr_db)` as the canonical measurement path.
-- ✓ **SSF serialization + converters** — SSF v2/v3, SST v3, SSCX containers (`format/`) plus safetensors/GGUF readers/writers; `zstandard` compression.
-- ✓ **Inference pipeline + strategy stack** — `InferencePipeline` (`inference/pipeline.py:62`) and a 6-level unified engine (FORWARDLESS/HDC → RESONANT/Vlasov → SPECTRAL_BLOCK → SPECTRAL_VERIFY → STANDARD → FALLBACK) with exotic R&D engines (Vlasov mean-field attention, HDC, HRR, COCONUT, TimeCrystal resonance).
-- ✓ **KV-cache compression** — `KVCacheManager` unifying 30+ eviction policies (spectral, h2o, sliding, resonance, etc.) and compression methods (fwht, dct, svd, e8_lattice).
-- ✓ **Serving layer** — FastAPI OpenAI-compatible server (`serving/unified_server.py`), batching engine, production stack.
-- ✓ **Test suite** — 83 test files / ~2,758 pytest functions (concentrated on `format/` + engine dataclasses).
+- ✓ **INT8 blockwise quantization (`block_int8`)** — ~4.6× vs FP32 (2.3× vs BF16), SNR ~42 dB, on real Gemma-4 E2B (2011 tensors, 10 GB → 4.4 GB on disk) — the entire verified compression capability
+- ✓ **FP16 passthrough** — Lossless byte-for-byte identity (with SSF container padding overhead)
+- ✓ **Honest-metrics infrastructure** — `serialized_nbytes()`, `end_to_end_error()`, `dual_ratio()`, `ErrorMetrics(rel_mse, cosine_sim, max_abs, snr_db)` — byte-exact ratio + error measurement
+- ✓ **Registry-driven orchestrator** — `CompressionIntelligenceEngine` (profile→allocate→select→compress→validate) with lazy method loading and tier-based selection
+- ✓ **SSF v2/v3 binary format** — Full read/write/index/header I/O with zstd container codec
+- ✓ **CLI** — 10+ subcommands (`compress`, `profile`, `validate`, `benchmark`, `list-methods`, `info`, `convert`, `infer`, `generate-certificate`, `dial-in`)
+- ✓ **GGUF/safetensors converters** — Pure-Python weight loading and format conversion
+- ✓ **KVCacheManager** — 30+ eviction/compression policies unified under a single adapter
+- ✓ **5-stage cascade pipeline (2 live stages)** — EinSort + TT-SVD/block-quant implemented; stages 3–5 (sparse, ergodic, SIREN) defined but not wired
+- ✓ **Method registry (broad structural)** — 2,964 registered methods across decomposition, spectral, structural, functional, physics, quantization, entropy, lossless, hybrid, and novel categories — registration infrastructure works; per-method validation on real weights varies from zero to complete
+- ✓ **Streaming/chunked/memory-mapped compressors** — Memory-bounded execution for large tensors
+- ✓ **Pure-Python GGUF weight dequantizer** — Imports GGUF models without llama.cpp dependency
+- ✓ **CLI dashboards** — Rich terminal dashboards, progress bars, tables
 
 ### Active
 
-_(The work this project is being steered toward — the user's stated direction: honest 10–60× weight compression, 200–600× aspirational targets, leveraging the breadth of R&D methods.)_
+v1 scope: fix honesty gaps AND consolidate the core. All items are hypotheses until shipped.
 
-- [ ] **ACHV-01**: Achieve a real, honestly-measured **10–60× weight compression** (the practical target) end-to-end on a real model, validated by `honest_metrics`.
-- [ ] **ACHV-02**: Advance toward the **200–600× aspirational ratio targets** via multiplicative cascades (e.g., decomposition → spectral → quantization → entropy), gated by real reconstruction + functional error.
-- [ ] **ACHV-03**: Fix the 5-stage cascade so it actually compresses (currently 72–92% reconstruction error on real weights) — either wire/correct stages 3–5 or down-scope the advertised pipeline to match code.
-- [ ] **ACHV-04**: Make honesty enforceable — add tests for `honest_metrics.py` and a CI gate that rejects ratios reported without paired error, eliminating fabricated comparisons (GPTQ/AWQ/GGUF hardcoded constants).
-- [ ] **ACHV-05**: Establish **downstream quality validation** (perplexity / task accuracy on the compressed vs original model) to substantiate the "quality preserved" claim.
-- [ ] **ACHV-06**: Prune/quarantine the 2,964-method registry to working + tested methods; bound registry size and remove dead/branded SVD wrappers.
-- [ ] **ACHV-07**: Improve throughput/scaling realism (per-tensor time budgets, worker pool, realistic single-pass runtime for larger models).
+- [ ] **METRICS-01**: Error-gate all reported ratios — a method with `rel_mse > threshold` must not report a ratio as if it succeeded (fixes BUG-02)
+- [ ] **METRICS-02**: Make `ratio_vs_disk` (BF16) the default headline number; demote `ratio_vs_fp32` to secondary (fixes BUG-03)
+- [ ] **METRICS-03**: Replace fabricated industry comparison in `benchmark_industry_comparison.json` and `certificate.py` with either real measurements or explicit "literature estimates, not measured here" labels (fixes SEC-03)
+- [ ] **METRICS-04**: Add dedicated unit tests for `honest_metrics.py` — assert ratio↔error coupling, reject methods above error threshold, verify `serialized_nbytes` handles all payload shapes (fixes COV-03)
+- [ ] **CASCADE-01**: Fix the 5-stage cascade to produce `rel_mse < 0.05` on real weight slices, or remove it as a default/headline method until it does (fixes BUG-01)
+- [ ] **CASCADE-02**: Wire stages 3–5 or update documentation to honestly state that only stages 1–2 are live
+- [ ] **REGISTRY-01**: Split the 2,964-method registry into a validated active set (methods with tests + real-weight results) versus a labeled `experimental/` namespace (fixes TD-01)
+- [ ] **REGISTRY-02**: Fix or remove the broken walk-based auto-discovery (`_discover_by_walk`) (fixes TD-02)
+- [ ] **FORMAT-01**: Separate SSF container overhead (per-tensor 4096-byte page alignment + header/footer) from algorithmic compression ratio; pack small tensors into shared pages (fixes TD-03 / PERF-01)
+- [ ] **EVAL-01**: Implement and publish at least one real downstream eval — Wikitext perplexity on original vs compressed model (fixes MISS-01)
+- [ ] **DOCS-01**: Rewrite README, docs/QUANTIZATION.md, and compression-roadmap.md to honestly frame what works (4–6× vs FP32), label aspirational numbers as targets, and describe the method registry as a research catalog
+- [ ] **DOCS-02**: Create explicit "Research Catalog" documentation explaining the maturity levels of experimental methods
+- [ ] **RND-01**: Implement weight-activation importance scoring (APoZ / Wanda-class / SparseGPT) and validate on real weight slices — build the neural-activity-analysis layer
+- [ ] **RND-02**: Build LLM layer neuroanatomy profiling pipeline: per-layer singular-value distribution, activation sparsity patterns, cross-layer correlation analysis
+- [ ] **RND-03**: Prototype dynamic per-layer reduction — given importance metrics per layer, choose compression parameters or pruning ratio adaptively
+- [ ] **RND-04**: Explore deep architecture optimizations and math-primitive improvements (e.g., alternative factorization schedules, hybrid spectral-decomposition variants)
 
 ### Out of Scope
 
-- **GPU / accelerated backend** — engine is explicitly CPU/NumPy research-grade; `torch` is an optional extra only. Production serving is a different class of project.
-- **Training from scratch / distillation to reach 800×+** — `REAL_WORLD_BENCHMARK.md` shows post-training compression is Shannon-capped near ~6:1; 800×+ requires BitNet/low-rank training, a separate effort.
-- **Cloud hosting / multi-tenant serving** — local single-process / local FastAPI only; no containers/CI/deploy manifests today.
-- **Non-Python / C++ core rewrite** — `CMakeLists.txt` is a stub; the project is pure Python by design.
-- **Fabricated or estimated benchmark comparisons** — explicitly excluded per the honesty mandate; only measured-in-repo methods may be compared.
+- **Production-grade GPU-accelerated LLM serving** — The engine is research-grade CPU-only. No vLLM/TRT-LLM/TensorRT path is planned.
+- **Training-from-scratch compression methods** (BitNet, ternary-from-scratch, etc.) — Only post-training compression. The 800×+ ratios require training methods; that is a different research agenda.
+- **The 2000–5000× numbers as achieved results** — These are theoretical upper bounds from exotic methods (quantum, holographic, chaotic), not end-to-end measurements. They live in the research catalog; README must not present them as current capability.
+- **Real-time model serving at scale** — No load balancing, horizontal scaling, or production SLAs.
+- **Full CI/CD pipeline** — v1 targets a metrics-honesty gate and optional puzzles eval, not a full CI/CD lifecycle.
 
 ## Context
 
-- **Brownfield, R&D-phase project.** The repo carries a documented history of inflated/non-honest metrics (commits `c66016e` "replace fabricated metrics with true end-to-end compression measurements", `b213e4f` "honest-metrics-windows-compat"). `compression-roadmap.md` itself documents past accounting bugs (e.g., `len(dict)` mis-used as byte length producing fake 588:1/2000:1 ratios).
-- **The ratio numbers are a spectrum, not a single fact.** Per the research docs: working reality is ~4–6× vs FP32 on real BF16 weights (flat singular-value spectrum, no exploitable low-rank structure → Shannon ceiling ≈ 6:1, `REAL_WORLD_BENCHMARK.md`). The "10–60×" framing comes from `docs/QUANTIZATION.md` ("6–60× better than GGUF Q4_K_M"); "200–400× realistic / 2000–5000× aspirational" from README/roadmap; "200–600×" blends these repo figures. KV-cache figures (3277:1 holographic phase, 332:1 quantum weight) are mostly theoretical or qualified ("at 75% retrieval similarity, not <0.02% loss"). Single-method/theoretical explorations reach far higher (Spectral Envelope 9915:1, Strange-Attractor 1,000,000:1) but are math upper-bounds, not measured on real weights.
-- **Codebase map** at `.planning/codebase/` (7 docs) is the authoritative current-state reference for planning.
+**The honesty story:** The repo has a documented history of inflated metrics (commit `c66016e` "replace fabricated metrics with true end-to-end compression measurements"). The `honest_metrics.py` module was built specifically to stop this. It works — but CONCERNS.md (COV-03) finds it has no tests, and BUG-02 shows a method with 85% error still reports a 22.31× ratio. The honest-metrics infrastructure is in place but unhardened.
+
+**The cascade gap:** The flagship 5-stage cascade is documented as EinSort → TT-SVD → Sparse Residual → Ergodic → SIREN, but only stages 1–2 are actually wired. On real Gemma-4 weights, the cascade yields 72–92% reconstruction error (TT-SVD captures ~14% variance). The diagnosis (`stage_diagnosis.json`) is honest but damning.
+
+**The registry size:** 2,964 registered methods, but the honest full-model run (`run_full_model_honest_results.json`) used only `fp16_passthrough` (71% of tensors) and `int8_blockwise+zlib` (29%). The registry is overwhelmingly aspirational — a research catalog, not an active toolkit.
+
+**Research directions (the R&D half):** The active exploration agenda includes:
+- *Activation-based pruning* — APoZ (average % of zeros), Wanda (weight × activation), SparseGPT on real weights
+- *LLM neuroanatomy* — Per-layer importance profiling, singular-value distribution analysis, activation sparsity patterns
+- *Dynamic reduction* — Given per-layer importance metrics, adaptively choose compression parameters or prune ratios per layer
+- *Deep architecture optimization* — Factorizations, hybrid spectral-decomposition variants, math-primitive improvements
+- *The existing 2,964-method research catalog* — Maturity-labeled and honestly documented, not claimed as working
 
 ## Constraints
 
-- **Tech stack**: Pure Python 3.10+, NumPy ≥1.24 / SciPy ≥1.10 / psutil / safetensors / zstandard. No real C/C++ extension. Optional extras: `web` (fastapi/uvicorn/jinja2/pydantic), `gguf`, `ml` (torch/sklearn/ml-dtypes), `finetune` (datasets), `dev` (pytest/rich).
-- **Platform**: CPU-only inference target. No GPU requirement.
-- **License**: AGPL-3.0.
-- **Honesty mandate**: All ratios/errors MUST flow through `honest_metrics`; no `len(dict)` estimates, no hardcoded competitor tables (per `CONCERNS.md` SEC-03, HIGH).
-- **Real-weight ceiling**: Post-training BF16 compression is Shannon-limited near ~6:1; larger claims require architectural/training changes, not post-hoc compression.
-- **Reproducibility**: Benchmarks currently hardcode the author's model path (`models/gemma-4-E2B/model.safetensors`, gitignored) and use `signal.alarm`/`exec` timeouts that break on Windows (branch is `fix/honest-metrics-windows-compat`).
+- **Tech stack**: Pure Python (NumPy ≥1.24, SciPy ≥1.10). No C++ extensions, no GPU acceleration, no torch dependency in the core path. CPU-targeted only.
+- **License**: AGPL-3.0
+- **Maturity**: Research-grade. Performance is orders of magnitude below real LLM serving engines. Single-threaded (GIL), no GPU, inference ~2–3× slower than llama.cpp at best.
+- **Metrics honesty**: ALL ratio/error numbers must flow through `honest_metrics.py` (byte-exact). No estimates, no per-stage products, no len(dict).
+- **Format overhead**: SSF container uses 4096-byte page alignment + 256-byte header + 128-byte footer per tensor. ALWAYS report algorithmic ratio separate from overhead.
+- **Windows compatibility**: The `fix/honest-metrics-windows-compat` branch exists. `signal.alarm`/`exec`-based timeouts (Linux-only) must be replaced.
+- **Dependency divergence**: `pyproject.toml` and `requirements.txt` disagree. Single-source deps needed.
+- **No eval baseline**: Zero perplexity or downstream task evaluations exist. This is the single biggest quality-trust gap.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Registry-driven, tiered, lazy-evaluated engine | Maximal method breadth; only ~10 methods pre-loaded, rest lazy | ✓ Good for exploration; ⚠️ 2,964 registered / ~2 used in practice — needs pruning |
-| Honesty-first metrics (`honest_metrics`) | Past fabricated-ratio history; ratios must be byte-exact | ✓ Right direction; ⚠️ not yet enforced by tests/CI |
-| Pure-Python / CPU scope | Research-grade, dependency-light, runs on consumer hardware | ⚠️ Revisit — non-competitive vs real serving engines for latency |
-| 5-stage cascade as flagship narrative | EinSort→TT-SVD→Sparse→Ergodic→SIREN is the conceptual through-line | ⚠️ Revisit — only stages 1–2 wired; 72–92% error on real weights |
+| Dual core + R&D | Keep the broad method registry as an explicit research catalog; make the honest ~4–6× path the only advertised/default capability. Honesty and exploration coexist but are clearly labeled. | — Pending |
+| v1 = Both honesty + consolidation | Fix metric gaps (BUG-02, SEC-03, COV-03) AND consolidate core (TD-01 registry, TD-03 SSF overhead, MISS-01 eval). "Either/or" leaves known dishonesty or unsustainable bloat. | — Pending |
+| Activation-based pruning as R&D track | APoZ / Wanda / SparseGPT are partially present as stubs. The real work is building the analysis layer (neuroanatomy, importance scoring, dynamic gating) and validating on real weights. | — Pending |
+| Research catalog maturity labels | The 2,964 methods are not removed but moved to a labeled namespace with documented validation status. This preserves the exploration value while preventing misrepresentation. | — Pending |
 
 ## Evolution
 
@@ -86,4 +114,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-08 after project initialization (brownfield, via /gsd-new-project)*
+*Last updated: 2026-07-08 after project initialization*
