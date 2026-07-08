@@ -131,10 +131,16 @@ class BaseTokenizer:
         self._vocab_size = val
 
     def encode(self, text: str) -> list[int]:
-        raise NotImplementedError
+        # Byte-identity fallback: maps each byte of the UTF-8 encoding
+        # to its numeric value.  This is a never-raise default, not a
+        # faithful model tokenizer — subclasses override with proper
+        # BPE / SentencePiece / Tiktoken encoding.
+        return list(text.encode("utf-8"))
 
     def decode(self, token_ids: list[int]) -> str:
-        raise NotImplementedError
+        # Byte-identity fallback: reconstruct bytes from token ids,
+        # decode as UTF-8 with replacement for invalid sequences.
+        return bytes(int(t) & 0xFF for t in token_ids).decode("utf-8", errors="replace")
 
     def __call__(self, text: str) -> list[int]:
         return self.encode(text)
