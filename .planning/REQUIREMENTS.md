@@ -84,10 +84,10 @@ Deferred to future releases. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| METRICS-01 | Phase 1 (Metrics Trust Loop) | Pending |
+| METRICS-01 | Phase 1 (Metrics Trust Loop) | ✅ Complete (Plan 01-01) |
 | METRICS-02 | Phase 1 (Metrics Trust Loop) | Pending |
 | METRICS-03 | Phase 1 (Metrics Trust Loop) | Pending |
-| METRICS-04 | Phase 1 (Metrics Trust Loop) | Pending |
+| METRICS-04 | Phase 1 (Metrics Trust Loop) | ✅ Complete (Plan 01-01) |
 | CASCADE-01 | Phase 3 (Cascade Correction) | Pending |
 | CASCADE-02 | Phase 3 (Cascade Correction) | Pending |
 | EVAL-01 | Phase 2 (Eval Subsystem) | Pending |

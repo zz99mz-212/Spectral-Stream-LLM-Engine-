@@ -128,7 +128,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Metrics Trust Loop | 0/3 | Not started | - |
+| 1. Metrics Trust Loop | 1/3 | In Progress (1 of 3 done) | 2026-07-08 |
 | 2. Eval Subsystem | 0/0 | Not started | - |
 | 3. Cascade Correction | 0/0 | Not started | - |
 | 4. Calibration & Neuroanatomy Foundation | 0/0 | Not started | - |
