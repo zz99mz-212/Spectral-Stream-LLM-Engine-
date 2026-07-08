@@ -55,15 +55,24 @@ proof (Phase 4), cascade correctness (Phase 3), registry/format work (Phase 6/7)
 ### Recovery Gate & Artifact (EVAL-01 / success criteria #1, #4)
 - **D-06:** seq_len = 2048 (per ROADMAP). Use `measure_perplexity`'s sliding window; default
   stride = 512 (the method's existing default), configurable.
-- **D-07:** `recovery_ratio = ppl_compressed / ppl_base` — matches the requirement's literal
-  `compressed/base`. Gate passes when `recovery_ratio >= threshold`.
+- **D-07:** `recovery_ratio = ppl_base / ppl_compressed` — the **fraction of original quality
+  retained** (1.0 = lossless, lower = more quality lost). This is the CORRECT direction: lower
+  PPL is better, so dividing base by compressed yields a ratio that is high when compression
+  preserves quality. **Correction (flagged by research):** the earlier draft used
+  `ppl_compressed / ppl_base`, which is logically inverted — it can only "fail" when the
+  compressed model is *better* than base and can never catch catastrophic (e.g. 10×) degradation.
+  The roadmap's literal `compressed/base ≥ threshold` wording is itself this bug; we implement the
+  semantically-correct retained-quality ratio and interpret success-criterion #4 as "recovery
+  ratio (base/compressed) ≥ 0.95". Gate passes when `recovery_ratio >= threshold`.
 - **D-08:** Default threshold = 0.95 (research recovery ≥ 0.95). Configurable via a constant
   (e.g. `RECOVERY_GATE_THRESHOLD`) plus optional env/CLI override. The verified INT8 baseline
   should clear it comfortably and documents the in-repo quality bar.
 - **D-09:** Artifact is a JSON file with fields: `model`, `method`, `tokenizer`, `base_ppl`,
-  `compressed_ppl`, `recovery_ratio`, `recovery_gate_threshold`, `gate_passed`, `seq_len`,
-  `stride`, `n_tokens`, `timestamp`, `git_ref`. Both PPL values are REAL MEASURED numbers —
-  no estimates, no proxies. Written under `eval/artifacts/` (or `eval/results/`).
+  `compressed_ppl`, `recovery_ratio` (== `ppl_base / ppl_compressed`, per D-07),
+  `recovery_gate_threshold`, `gate_passed`, `seq_len`, `stride`, `n_tokens`, `layers_loaded`,
+  `timestamp`, `git_ref`. Both PPL values are REAL MEASURED numbers — no estimates, no proxies.
+  `layers_loaded` guards against silent partial-model loads (a plausible-but-wrong PPL). Written
+  under `eval/artifacts/` (or `eval/results/`).
 
 ### Model Loading & Path (EVAL-03 / SEC-02)
 - **D-10:** Remove hardcoded absolute paths (`benchmark_physics_real_weights.py:38`,
@@ -155,8 +164,10 @@ proof (Phase 4), cascade correctness (Phase 3), registry/format work (Phase 6/7)
 <specifics>
 ## Specific Ideas
 
-- `recovery_ratio` definition is `ppl_compressed / ppl_base` (literal "compressed/base"); gate
-  passes when `recovery_ratio >= 0.95`. This is the single most important honesty check.
+- `recovery_ratio` definition is `ppl_base / ppl_compressed` (retained-quality fraction, 1.0 =
+  lossless). Gate passes when `recovery_ratio >= 0.95`. **Corrected** from the inverted
+  `ppl_compressed / ppl_base` form (which could never fail for worse compressions). This is the
+  single most important honesty check.
 - seq_len = 2048 is fixed by the roadmap success criterion; do not change it without revisiting ROADMAP.
 - The artifact must contain BOTH `base_ppl` and `compressed_ppl` as measured values — the
   recovery ratio is derived, never supplied.
