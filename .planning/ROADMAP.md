@@ -56,8 +56,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A recovery gate (`compressed/base ≥ configured threshold`) is enforced and reported in the eval artifact.
 
 **Plans**: 3 plans
+**Wave 1**
+
 - [ ] 02-01-PLAN.md — WikiText-2 perplexity grader with honest JSON artifact (EVAL-01)
 - [ ] 02-02-PLAN.md — BaseTokenizer byte-identity fallback and default tokenizer round-trip (EVAL-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 02-03-PLAN.md — Parameterize model paths and document required model in README (EVAL-03)
 
 ### Phase 3: Cascade Correction
