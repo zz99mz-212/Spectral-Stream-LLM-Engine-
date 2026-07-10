@@ -18,6 +18,33 @@
 >
 > **Current status (06/2026):** Block INT8 achieves 4.6× vs FP32 at SNR ~42 dB on Gemma-4 E2B (2011 tensors, 10.2 GB on disk). The 5-stage cascade (EinSort → TT-SVD → Sparse Residual → Ergodic → SIREN) is implemented and being dialed in on real weights. Expect breaking changes.
 
+## Reproducing results
+
+Benchmark and eval scripts assume a local **Gemma-4 E2B** weights file (`.safetensors`). The model path is resolved in this order:
+
+1. `SPECTRALSTREAM_MODEL_PATH` environment variable
+2. `--model PATH` CLI argument
+3. Relative fallback: `models/gemma-4-E2B/model.safetensors`
+
+Set the path via environment variable:
+
+```bash
+export SPECTRALSTREAM_MODEL_PATH=/path/to/gemma-4-E2B/model.safetensors
+python -m spectralstream.eval.run_eval --compressed /path/to/model.ssf
+```
+
+Or pass it directly per invocation:
+
+```bash
+python benchmark_physics_real_weights.py --model /path/to/model.safetensors
+python wave4_pipeline.py --model /path/to/model.safetensors
+python -m spectralstream.eval.run_eval --model /path/to/model.safetensors --compressed /path/to/model.ssf
+```
+
+If neither env var nor `--model` is supplied, scripts fall back to `models/gemma-4-E2B/model.safetensors` relative to the working directory.
+
+---
+
 Pure-Python LLM inference engine using hyperdimensional computing, spectral/DCT methods, Vlasov mean-field attention, and quantum-inspired tensor networks. All SIMD via NumPy vectorized operations — no C++ extensions.
 
 ---

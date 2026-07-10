@@ -18,6 +18,8 @@ import numpy as np
 
 sys.path.insert(0, ".")
 
+from eval.model_path import resolve_model_path
+
 from safetensors import safe_open
 
 from spectralstream.compression.cascade_5stage import FiveStageCascade
@@ -162,7 +164,20 @@ def run_block_int8(
 
 
 def main():
-    model_path = "models/gemma-4-E2B/model.safetensors"
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Wave 4: 5-stage cascade pipeline on Gemma-4-E2B weights."
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Path to model safetensors file. Overrides SPECTRALSTREAM_MODEL_PATH env var.",
+    )
+    args = parser.parse_args()
+
+    model_path = resolve_model_path(args.model)
     output_path = "wave4_results.json"
 
     print("=" * 120)

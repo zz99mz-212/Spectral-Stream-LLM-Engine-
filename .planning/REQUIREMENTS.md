@@ -11,6 +11,10 @@ Requirements for initial consolidation release. Each maps to roadmap phases.
 
 Foundational honesty infrastructure. Fixes the broken relationship between ratio and error that made BUG-02 and the fabricated comparison possible.
 
+- [x] **METRICS-01**: Error-gate every reported compression ratio — a method with `rel_mse > threshold` must not emit a ratio as if it succeeded (fixes BUG-02)
+- [x] **METRICS-02**: Make `ratio_vs_disk` (BF16 baseline) the default headline; demote `ratio_vs_fp32` to secondary annotation (fixes BUG-03)
+- [x] **METRICS-03**: Replace fabricated industry comparisons in `benchmark_industry_comparison.json` and `certificate.py:440-463` — remove hardcoded GPTQ/AWQ/GGUF constants; label any external reference as "literature estimates, not measured here" (fixes SEC-03)
+- [x] **METRICS-04**: Add `tests/test_honest_metrics.py` — assert ratio↔error coupling, reject methods above error threshold, verify `serialized_nbytes` handles all payload shapes (fixes COV-03)
 - [ ] **METRICS-01**: Error-gate every reported compression ratio — a method with `rel_mse > threshold` must not emit a ratio as if it succeeded (fixes BUG-02)
 - [ ] **METRICS-02**: Make `ratio_vs_disk` (BF16 baseline) the default headline; demote `ratio_vs_fp32` to secondary annotation (fixes BUG-03)
 - [ ] **METRICS-03**: Replace fabricated industry comparisons in `benchmark_industry_comparison.json` and `certificate.py:440-463` — remove hardcoded GPTQ/AWQ/GGUF constants; label any external reference as "literature estimates, not measured here" (fixes SEC-03)
@@ -27,6 +31,9 @@ Fix or honestly scope the project's headline feature.
 
 The single biggest trust gap — without perplexity or downstream-task evaluation, "quality preserved" is an unsubstantiated claim.
 
+- [x] **EVAL-01**: Implement and publish at least one real downstream eval — WikiText-2 perplexity (seq len 2048) comparing original FP16 model vs compressed model; produce a verifiable JSON artifact (fixes MISS-01)
+- [x] **EVAL-02**: Fix `BaseTokenizer.encode` to not raise `NotImplementedError`; ship one working default tokenizer; add test (fixes BUG-04, MISS-02)
+- [x] **EVAL-03**: Replace hardcoded absolute model path (`/home/mike/.../gemma-4-E2B`) with env/CLI arg; document required model for reproducing results (fixes SEC-02)
 - [ ] **EVAL-01**: Implement and publish at least one real downstream eval — WikiText-2 perplexity (seq len 2048) comparing original FP16 model vs compressed model; produce a verifiable JSON artifact (fixes MISS-01)
 - [ ] **EVAL-02**: Fix `BaseTokenizer.encode` to not raise `NotImplementedError`; ship one working default tokenizer; add test (fixes BUG-04, MISS-02)
 - [ ] **EVAL-03**: Replace hardcoded absolute model path (`/home/mike/.../gemma-4-E2B`) with env/CLI arg; document required model for reproducing results (fixes SEC-02)
@@ -84,6 +91,15 @@ Deferred to future releases. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| METRICS-01 | Phase 1 (Metrics Trust Loop) | ✅ Complete (Plan 01-01) |
+| METRICS-02 | Phase 1 (Metrics Trust Loop) | Complete |
+| METRICS-03 | Phase 1 (Metrics Trust Loop) | Complete |
+| METRICS-04 | Phase 1 (Metrics Trust Loop) | ✅ Complete (Plan 01-01) |
+| CASCADE-01 | Phase 3 (Cascade Correction) | Pending |
+| CASCADE-02 | Phase 3 (Cascade Correction) | Pending |
+| EVAL-01 | Phase 2 (Eval Subsystem) | ✅ Complete (Plans 02-01, 02-04) |
+| EVAL-02 | Phase 2 (Eval Subsystem) | ✅ Complete (Plans 02-02, 02-04) |
+| EVAL-03 | Phase 2 (Eval Subsystem) | ✅ Complete (Plan 02-03) |
 | METRICS-01 | Phase 1 (Metrics Trust Loop) | Pending |
 | METRICS-02 | Phase 1 (Metrics Trust Loop) | Pending |
 | METRICS-03 | Phase 1 (Metrics Trust Loop) | Pending |
@@ -109,6 +125,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | CI-01 (v2) | — | Deferred |
 
 **Coverage:**
+
 - v1 requirements: 19 total
 - Mapped to phases: 19
 - Unmapped: 0 ✓ (100% coverage)

@@ -21,6 +21,8 @@ import numpy as np
 BF16_BYTES_PER_ELEMENT = 2
 FP32_BYTES_PER_ELEMENT = 4
 
+ERROR_GATE_THRESHOLD = 0.05  # rel_mse; strict > gate; consistent with Phase-3 cascade acceptance
+
 
 def serialized_nbytes(payload: Any) -> int:
     """Recursively compute the true number of bytes a payload occupies.
@@ -161,3 +163,57 @@ def ratio_vs_bf16(original_elements: int, payload: Any) -> float:
     comp_bytes = max(serialized_nbytes(payload), 1)
     bf16_bytes = original_elements * BF16_BYTES_PER_ELEMENT
     return float(bf16_bytes) / float(comp_bytes)
+
+
+def apply_gate(
+    payload: Any,
+    original_elements: int,
+    rel_mse: float,
+    threshold: float = ERROR_GATE_THRESHOLD,
+) -> Dict[str, Any]:
+    """Central chokepoint: couple every compression ratio to its reconstruction error.
+
+    This is THE ONLY ratio-emission decision point. Both CLI blocks and future
+    reporters must call it (not per-call-site thresholds). A high-error method
+    is gated (marked, ratio suppressed); a good method keeps its byte-exact
+    ratio derived from ``serialized_nbytes``.
+
+    Boundary: at exactly ``rel_mse == threshold`` the gate is NOT triggered
+    (strict ``>``), consistent with Phase-3 cascade acceptance.
+
+    The gate never drops the error metrics (rel_mse/cosine_sim/max_abs/snr_db)
+    — only suppresses the ratio claim when error is over threshold.
+
+    Parameters
+    ----------
+    payload : Any
+        The compressed payload (bytes, ndarray, dict, or mixed nested structure).
+    original_elements : int
+        Element count of the original tensor (not byte count — ``dual_ratio``
+        derives fp32/bf16 byte counts from it).
+    rel_mse : float
+        Relative mean squared error from ``end_to_end_error``.
+    threshold : float, optional
+        Error threshold; defaults to ``ERROR_GATE_THRESHOLD``.
+
+    Returns
+    -------
+    Dict[str, Any]
+        ratio_vs_bf16   : float or None (None if gated)
+        ratio_vs_fp32   : float or None (None if gated)
+        rel_mse         : float (always retained)
+        gated           : bool (True if rel_mse > threshold)
+        gate_reason     : str ("" if not gated, otherwise human-readable reason)
+    """
+    ratios = dual_ratio(original_elements, payload)
+    gated = bool(rel_mse > threshold)  # STRICT >, never >=
+    gate_reason = (
+        f"rel_mse {rel_mse:.4f} > {threshold}" if gated else ""
+    )
+    return {
+        "ratio_vs_bf16": ratios["ratio_vs_bf16"] if not gated else None,
+        "ratio_vs_fp32": ratios["ratio_vs_fp32"] if not gated else None,
+        "rel_mse": float(rel_mse),
+        "gated": gated,
+        "gate_reason": gate_reason,
+    }

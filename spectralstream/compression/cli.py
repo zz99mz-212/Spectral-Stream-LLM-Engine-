@@ -27,7 +27,11 @@ from spectralstream.compression.engine.world_model import (
     ModelCompressionStats,
 )
 from spectralstream.format.reader import SSFReader
-from spectralstream.compression.honest_metrics import dual_ratio, end_to_end_error
+from spectralstream.compression.honest_metrics import (
+    dual_ratio,
+    end_to_end_error,
+    apply_gate,
+)
 
 try:
     from spectralstream.compression.cli_dashboard import CompressionDashboard
@@ -843,9 +847,6 @@ def cmd_compress(args: argparse.Namespace) -> None:
                     original = io.read_tensor(
                         name, shape_i, dtype_i, offset_i, nbytes_i
                     )
-                    ratios = dual_ratio(original.size, data)
-                    honest_metrics_dict["ratio_vs_fp32"] = ratios["ratio_vs_fp32"]
-                    honest_metrics_dict["ratio_vs_bf16"] = ratios["ratio_vs_bf16"]
 
                     method_name = result.get("method", "")
                     if method_name:
@@ -863,6 +864,10 @@ def cmd_compress(args: argparse.Namespace) -> None:
                                 honest_metrics_dict["cosine_sim"] = err.cosine_sim
                                 honest_metrics_dict["max_abs"] = err.max_abs
                                 honest_metrics_dict["snr_db"] = err.snr_db
+                                # Gate the ratio through the central honesty chokepoint
+                                honest_metrics_dict.update(
+                                    apply_gate(data, original.size, err.rel_mse)
+                                )
                 except Exception as _hm_exc:
                     logger.debug("Honest metrics failed for %s: %s", name, _hm_exc)
 
@@ -1270,10 +1275,6 @@ def cmd_compress(args: argparse.Namespace) -> None:
             honest_metrics_dict: Dict[str, Any] = {}
             if args.honest_metrics and data is not None:
                 try:
-                    ratios = dual_ratio(tensor.size, data)
-                    honest_metrics_dict["ratio_vs_fp32"] = ratios["ratio_vs_fp32"]
-                    honest_metrics_dict["ratio_vs_bf16"] = ratios["ratio_vs_bf16"]
-
                     method_name = meta.get("method", "")
                     if method_name:
                         from spectralstream.compression.methods import (
@@ -1290,6 +1291,10 @@ def cmd_compress(args: argparse.Namespace) -> None:
                                 honest_metrics_dict["cosine_sim"] = err.cosine_sim
                                 honest_metrics_dict["max_abs"] = err.max_abs
                                 honest_metrics_dict["snr_db"] = err.snr_db
+                                # Gate the ratio through the central honesty chokepoint
+                                honest_metrics_dict.update(
+                                    apply_gate(data, tensor.size, err.rel_mse)
+                                )
                 except Exception as _hm_exc:
                     logger.debug("Honest metrics failed for %s: %s", name, _hm_exc)
             ct.params["honest_metrics"] = honest_metrics_dict
@@ -1387,12 +1392,12 @@ def cmd_compress(args: argparse.Namespace) -> None:
     # ── Honest metrics summary ──
     if args.honest_metrics:
         hm_fp32 = [
-            c.get("honest_metrics", {}).get("ratio_vs_fp32", 0)
+            c.get("honest_metrics", {}).get("ratio_vs_fp32", None)
             for c in compressed
             if c.get("honest_metrics")
         ]
         hm_bf16 = [
-            c.get("honest_metrics", {}).get("ratio_vs_bf16", 0)
+            c.get("honest_metrics", {}).get("ratio_vs_bf16", None)
             for c in compressed
             if c.get("honest_metrics")
         ]
@@ -1411,10 +1416,23 @@ def cmd_compress(args: argparse.Namespace) -> None:
             for c in compressed
             if c.get("honest_metrics")
         ]
-        if hm_fp32:
-            logger.info("  Honest ratio (vs FP32): avg %.1fx", float(np.mean(hm_fp32)))
-        if hm_bf16:
-            logger.info("  Honest ratio (vs BF16): avg %.1fx", float(np.mean(hm_bf16)))
+        # Filter gated (None) ratios before computing means
+        hm_bf16_valid = [r for r in hm_bf16 if r is not None]
+        hm_fp32_valid = [r for r in hm_fp32 if r is not None]
+        # GATED marker
+        if any(c.get("honest_metrics", {}).get("gated") for c in compressed):
+            gated_count = sum(
+                1 for c in compressed if c.get("honest_metrics", {}).get("gated")
+            )
+            logger.info(
+                "  ⚠️ %d tensor(s) GATED — error exceeded threshold; ratio suppressed",
+                gated_count,
+            )
+        # BF16 led (headline); FP32 demoted to secondary
+        if hm_bf16_valid:
+            logger.info("  Honest ratio (vs BF16 / disk): avg %.1fx", float(np.mean(hm_bf16_valid)))
+        if hm_fp32_valid:
+            logger.info("  (secondary, vs FP32): avg %.1fx", float(np.mean(hm_fp32_valid)))
         if hm_mse:
             logger.info("  Honest rel_mse: avg %.6f", float(np.mean(hm_mse)))
         if hm_cos:

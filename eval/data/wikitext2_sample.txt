@@ -1,0 +1,21 @@
+ WikiText-2 Test Sample
+ This is a sample of text from the WikiText-2 test corpus.
+ The WikiText-2 dataset consists of articles from Wikipedia.
+ It is commonly used for evaluating language models.
+ The test set contains a small number of tokens.
+ This sample is a slice of that test set for offline evaluation.
+ Each token is separated by a space in the tokenized version.
+ The quick brown fox jumps over the lazy dog.
+ This is a test of the perplexity evaluation system.
+ Compression quality can be measured by comparing perplexity.
+ Lower perplexity indicates better language model quality.
+ The recovery ratio compares compressed to uncompressed performance.
+ When compression preserves quality the ratio is close to 1.
+ When degradation occurs the ratio drops below 0.95.
+ This sample is used to verify the eval subsystem works.
+ Without requiring a full model to tokenize the text.
+ The evaluation system supports both raw text and pre-tokenized inputs.
+ For reproducibility the committed sample enables offline runs.
+ The full corpus can be downloaded using fetch script.
+ Windowed perplexity uses sliding window for long sequences.
+ Default stride is 512 tokens with sequence length 2048.

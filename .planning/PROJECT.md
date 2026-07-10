@@ -31,6 +31,10 @@ Capabilities that work on real weights or are structurally sound:
 - ✓ **Streaming/chunked/memory-mapped compressors** — Memory-bounded execution for large tensors
 - ✓ **Pure-Python GGUF weight dequantizer** — Imports GGUF models without llama.cpp dependency
 - ✓ **CLI dashboards** — Rich terminal dashboards, progress bars, tables
+- ✓ **Error-gated ratio emission (`apply_gate`)** — Validated in Phase 01 (METRICS-01): high-error methods (`rel_mse > 0.05`) emit no ratio (gated: `ratio_vs_bf16:None`), good methods keep byte-exact `ratio_vs_bf16`/`ratio_vs_fp32` via `serialized_nbytes`
+- ✓ **BF16 as headline ratio** — Validated in Phase 01 (METRICS-02): CLI summary leads with `ratio_vs_disk` (BF16), demotes FP32 to secondary, filters gated tensors from means, emits a GATED marker
+- ✓ **Honest competitor comparison** — Validated in Phase 01 (METRICS-03): 9 competitor constants extracted to `literature_estimates.py` labeled "literature estimates, not measured here"; `certificate.py` is a pure consumer; orphaned `benchmark_industry_comparison.json` deleted
+- ✓ **honest_metrics unit tests** — Validated in Phase 01 (METRICS-04): `tests/test_honest_metrics.py` asserts ratio↔error coupling, strict-`>` boundary, all `serialized_nbytes` payload shapes, BF16 headline, gated-None
 
 ### Active
 
@@ -114,4 +118,5 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-07-08 after Phase 1 (Metrics Trust Loop) completion*
 *Last updated: 2026-07-08 after project initialization*

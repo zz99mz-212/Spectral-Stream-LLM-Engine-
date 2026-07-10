@@ -10,6 +10,11 @@ from pathlib import Path
 
 import numpy as np
 
+from spectralstream.compression.literature_estimates import (
+    LITERATURE_ESTIMATES,
+    LITERATURE_DISCLAIMER,
+)
+
 
 class CertificateBuilder:
     """Builds CompressionCertificate from engine results."""
@@ -429,17 +434,9 @@ class CompressionCertificate:
     def _compute_industry_comparison(self):
         """Compare compression power against known methods."""
         ratio = self.overall_ratio
-        comparisons = [
-            ("FP16 (baseline)", 2.0, "2x storage savings", "lossless"),
-            ("INT8 quantization", 4.0, "Standard 8-bit quantization", "lossy"),
-            ("INT4 quantization", 8.0, "Standard 4-bit quantization", "lossy"),
-            ("NF4 (QLoRA)", 4.0, "Normal float 4, QLoRA standard", "lossy"),
-            ("GPTQ 4-bit", 8.0, "Post-training quantization", "lossy"),
-            ("AWQ 4-bit", 8.0, "Activation-aware quantization", "lossy"),
-            ("GGML Q4_0", 4.5, "llama.cpp Q4_0 quantization", "lossy"),
-            ("GGML Q8_0", 2.5, "llama.cpp Q8_0 quantization", "lossy"),
-            ("SqueezeLLM", 8.0, "Non-uniform quantization", "lossy"),
-            ("SpectralStream (current)", round(ratio, 1), "This run", "hybrid"),
+        # Build comparisons from the literature_estimates module + current run
+        comparisons = list(LITERATURE_ESTIMATES) + [
+            ("SpectralStream (current)", round(ratio, 1), "This run", "hybrid")
         ]
         better_count = sum(1 for _, r, _, _ in comparisons if r < ratio and r != ratio)
         total_known = sum(1 for _, r, _, _ in comparisons if r != ratio)
@@ -460,6 +457,7 @@ class CompressionCertificate:
             "rank": f"{rank}/{total_known}",
             "better_than_count": better_count,
             "total_compared": total_known,
+            "disclaimer": LITERATURE_DISCLAIMER,
         }
 
     def _estimate_download_time_saved(self) -> str:
@@ -779,6 +777,12 @@ class CompressionCertificate:
         lines.append(f"")
         lines.append(f"**Rank:** {self.industry_comparison.get('rank', '?')}")
 
+        # Surface the anti-fabrication disclaimer
+        disclaimer = self.industry_comparison.get("disclaimer", "")
+        if disclaimer:
+            lines.append("")
+            lines.append(f"⚠️ {disclaimer}")
+
         return "\n".join(lines)
 
     def to_text(self) -> str:
@@ -813,6 +817,24 @@ class CompressionCertificate:
             lines.append(
                 f"  \033[9{'2' if grade in 'SA' else '3' if grade in 'BC' else '1'}m{grade}\033[0m {bar} {count}"
             )
+
+        lines.append("")
+        lines.append("  📊 Industry Comparison:")
+        lines.append(f"  {'Rank:':<20} {self.industry_comparison.get('rank', '?')}")
+        lines.append(f"  {'Beats Standard Quant:':<20} {self.industry_comparison.get('beats_standard_quant', False)}")
+        lines.append(f"  {'Beats INT4:':<20} {self.industry_comparison.get('beats_int4', False)}")
+        lines.append("")
+        for c in self.industry_comparison.get("comparisons", []):
+            if c["ratio"] == round(self.overall_ratio, 1):
+                continue
+            result = (
+                "🟢 Beats"
+                if c["beats"]
+                else ("🔴 Loses to" if c["beats"] is False else "—")
+            )
+            lines.append(f"  • {c['name']:<25} {c['ratio']}x  {result}")
+        lines.append("")
+        lines.append("  ⚠️ " + self.industry_comparison.get("disclaimer", ""))
 
         lines.append("")
         lines.append("  📋 Per-Tensor Summary:")

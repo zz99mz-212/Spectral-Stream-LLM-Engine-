@@ -58,6 +58,8 @@
     "cross_ai_command": null,
     "cross_ai_timeout": 300,
     "build_command": null,
+    "test_command": null,
+    "_auto_chain_active": false
     "test_command": null
   },
   "ship": {
