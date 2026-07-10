@@ -13,11 +13,14 @@ Spectral-Stream v1 is an honesty-first consolidation of a pure-Python, CPU-targe
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Metrics Trust Loop** - Every reported ratio is error-gated and measured end-to-end; fabricated comparisons removed (completed 2026-07-08)
+- [x] **Phase 1: Metrics Trust Loop** - Every reported ratio is error-gated and measured end-to-end; fabricated comparisons removed
+ (completed 2026-07-08)
   - [x] 01-01-PLAN.md — Walking skeleton: central `apply_gate` chokepoint + `serialized_nbytes` shapes test (METRICS-01, METRICS-04)
   - [x] 01-02-PLAN.md — Gate second CLI block + BF16-led summary with GATED marker (METRICS-01, METRICS-02)
   - [x] 01-03-PLAN.md — De-hardcode competitor constants into `literature_estimates.py`, delete orphaned JSON (METRICS-03)
 - [x] **Phase 2: Eval Subsystem** - Reproducible WikiText-2 perplexity proves quality is preserved on real weights (completed 2026-07-08)
+- [ ] **Phase 1: Metrics Trust Loop** - Every reported ratio is error-gated and measured end-to-end; fabricated comparisons removed
+- [ ] **Phase 2: Eval Subsystem** - Reproducible WikiText-2 perplexity proves quality is preserved on real weights
 - [ ] **Phase 3: Cascade Correction** - Flagship 5-stage cascade fixed to honest error bounds or honestly scoped as experimental
 - [ ] **Phase 4: Calibration & Neuroanatomy Foundation** - Torch-free activation capture enables real-weight importance scoring and neuroanatomy profiling
 - [ ] **Phase 5: Dynamic Reduction & Architecture Optimization** - Per-layer importance drives adaptive compression; math-primitive exploration
@@ -44,6 +47,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 2: Eval Subsystem
 
+**Plans**: TBD
+
+### Phase 2: Eval Subsystem
 **Goal**: A reproducible, independent eval subsystem proves quality is preserved by measuring WikiText-2 perplexity on original vs compressed weights, closing the project's single biggest trust gap.
 **Mode**: mvp
 **Depends on**: Phase 1 (eval reports must use honest metrics)
@@ -68,6 +74,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 3: Cascade Correction
 
+**Plans**: TBD
+
+### Phase 3: Cascade Correction
 **Goal**: The flagship 5-stage cascade is either fixed to honest error bounds or honestly scoped — it never reports as a working headline method when it is not.
 **Mode**: mvp
 **Depends on**: Phase 1 (metrics gate enforces the `rel_mse` threshold)
@@ -83,6 +92,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 4: Calibration & Neuroanatomy Foundation
 
+**Plans**: TBD
+
+### Phase 4: Calibration & Neuroanatomy Foundation
 **Goal**: A torch-free calibration subsystem captures per-layer activations, enabling real-weight importance scoring and LLM neuroanatomy profiling — the critical substrate for the entire R&D track.
 **Mode**: mvp
 **Depends on**: Phase 2 (eval validates quality); Phase 1 (metrics integrity)
@@ -98,6 +110,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 5: Dynamic Reduction & Architecture Optimization
 
+**Plans**: TBD
+
+### Phase 5: Dynamic Reduction & Architecture Optimization
 **Goal**: Given per-layer importance metrics, the engine adaptively chooses compression/pruning parameters, and explores deeper architecture math primitives — prune-first, never quant-then-prune.
 **Mode**: mvp
 **Depends on**: Phase 4 (needs calibration + importance scoring)
@@ -113,6 +128,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 6: Registry & Depth Reduction
 
+**Plans**: TBD
+
+### Phase 6: Registry & Depth Reduction
 **Goal**: The 2,964-method registry is split into a validated active set and a labeled experimental namespace, and the broken walk-based auto-discovery is fixed or removed.
 **Mode**: mvp
 **Depends on**: Phase 1 (honest metrics to classify the validated set); parallelizable with eval/calibration
@@ -128,6 +146,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 7: Format Transparency
 
+**Plans**: TBD
+
+### Phase 7: Format Transparency
 **Goal**: SSF container overhead is reported separately from algorithmic compression, and small tensors are packed to reduce padding.
 **Mode**: mvp
 **Depends on**: Phase 1 (metrics consistency); parallelizable
@@ -142,6 +163,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 8: Documentation & Honest Framing
 
+  1. Compression reports show algorithmic ratio separate from SSF container overhead (per-tensor 4096B alignment + 256B header + 128B footer), so padding is never counted as compression.
+  2. Small tensors are packed into shared pages instead of per-tensor alignment, reducing stored size — verifiable by comparing on-disk size before/after on a real model.
+  3. A report artifact documents both the raw algorithmic ratio and the true on-disk ratio with overhead broken out line-by-line.
+**Plans**: TBD
+
+### Phase 8: Documentation & Honest Framing
 **Goal**: README and docs honestly frame what works, label aspirational numbers as targets, and explain the research catalog maturity.
 **Mode**: mvp
 **Depends on**: Phase 6 (registry split), Phase 7 (format overhead), Phase 3 (cascade status)
@@ -164,6 +191,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 |-------|----------------|--------|-----------|
 | 1. Metrics Trust Loop | 3/3 | Complete    | 2026-07-08 |
 | 2. Eval Subsystem | 4/4 | Complete    | 2026-07-08 |
+| 1. Metrics Trust Loop | 0/0 | Not started | - |
+| 2. Eval Subsystem | 0/0 | Not started | - |
 | 3. Cascade Correction | 0/0 | Not started | - |
 | 4. Calibration & Neuroanatomy Foundation | 0/0 | Not started | - |
 | 5. Dynamic Reduction & Architecture Optimization | 0/0 | Not started | - |

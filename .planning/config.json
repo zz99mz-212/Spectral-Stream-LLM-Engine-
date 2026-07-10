@@ -60,6 +60,7 @@
     "build_command": null,
     "test_command": null,
     "_auto_chain_active": false
+    "test_command": null
   },
   "ship": {
     "pr_body_sections": []
